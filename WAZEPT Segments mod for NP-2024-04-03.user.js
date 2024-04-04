@@ -25,6 +25,7 @@ let ChangeLog = "WazePT Mode has been updated to " + ScriptVersion + "<br />";
 //ChangeLog = ChangeLog + "<br />" + "- Added icon scaling so you can adjust the size of the icons";
 ChangeLog = ChangeLog + "<br /><br /><b>Updated: </b>";
 ChangeLog = ChangeLog + "<br />" + "- Added Fiji";
+
 (function() {
     var roads_id = [3,4,6,7,2,1,22,8,20,17,15,18,19];
     var pedonal_id = [5,10,16];
