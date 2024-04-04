@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         WAZEPT Segments mod for NP
+// @name         WAZEPT Segments mod test
 // @version      2024.04.03.01
 // @description  Facilitates the standardisation of segments for left-hand traffic
 // @author       kid4rm90s
