@@ -1,6 +1,6 @@
 // ==UserScript==
-// @name         WAZEPT Segments mod for NP
-// @version      2024.04.03.01
+// @name         WAZEPT Segments mod test
+// @version      2024.04.04.01
 // @description  Facilitates the standardisation of segments for left-hand traffic
 // @author       kid4rm90s
 // @include 	   /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
@@ -10,6 +10,7 @@
 // @namespace https://greasyfork.org/users/1087400
 // @downloadURL 
 // @updateURL 
+// @require         https://greasyfork.org/scripts/24851-wazewrap/code/WazeWrap.js
 /* 
 Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
 */
@@ -19,7 +20,8 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
 */
 
 (function() {
-    var version = GM_info.script.version;
+const ScriptName = GM_info.script.name;
+const ScriptVersion = GM_info.script.version;
     var roads_id = [3,4,6,7,2,1,22,8,20,17,15,18,19];
     var pedonal_id = [5,10,16];
     var array_config_country = {};
@@ -786,7 +788,25 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
         }
     }
 
-    
+function displayChangelog() {
+		if (!WazeWrap.Interface) {
+		setTimeout(displayChangelog, 1000);
+		return;
+		}
+
+	// Alert the user in URComment version updates
+		if (options.lastAnnouncedVersion === ScriptVersion) {
+		log('Version: ' + ScriptVersion);
+		} else {
+		WazeWrap.Interface.ShowScriptUpdate(ScriptName, ScriptVersion, ChangeLog + "<br /><br />", "github.com/kid4rm90s/Wazept-Segment-Mod-for-NP");
+
+		const updateName = "#Wazept-Segment-Mod-for-NP" + ScriptVersion.replaceAll(".", "");
+		$(updateName + " .WWSUFooter a").text("Github")
+
+		options.lastAnnouncedVersion = ScriptVersion;
+		saveOptions(options);
+		}
+	}    
     function verifyNull(variable)
     {
         if(variable === null)
