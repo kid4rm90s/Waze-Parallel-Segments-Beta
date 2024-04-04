@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         WAZEPT Segments mod test
-// @version      2024.04.04.01
+// @version      2024.04.04.02
 // @description  Facilitates the standardisation of segments for left-hand traffic
 // @author       kid4rm90s
 // @include 	   /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
