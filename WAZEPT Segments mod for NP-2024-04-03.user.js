@@ -1,6 +1,6 @@
 // ==UserScript==
-// @name         WAZEPT Segments mod test
-// @version      2024.04.03.01
+// @name         WAZEPT Segments Mod for NP Beta
+// @version      2024.05.30.01
 // @description  Facilitates the standardisation of segments for left-hand traffic
 // @author       kid4rm90s
 // @include 	   /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
@@ -263,7 +263,7 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
         let UpdateObject = require("Waze/Action/UpdateObject");
         let ConnectSegment = require("Waze/Action/ConnectSegment");
 
-        var newseg1=new FeatureVectorSegment({geometry:segment.attributes.geometry});
+        var newseg1=new FeatureVectorSegment({geoJSONGeometry:W.userscripts.toGeoJSONGeometry(segment.attributes.geometry)});
 
         newseg1.copyAttributes(segment);
 
@@ -276,7 +276,7 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
         let action = new AddSegment(newseg1);
         W.model.actionManager.add(action);
 
-        let seg = W.model.segments.getObjectById(action.segmentAttributes.id);
+        let seg = W.model.segments.getObjectById(action.segment.attributes.id);
         if(roads_id.includes(seg.attributes.roadType))
         {
             W.model.actionManager.add(new UpdateObject(seg,{fwdTurnsLocked:true,revTurnsLocked:true}))
