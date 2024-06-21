@@ -73,8 +73,34 @@ WebFontConfig = {google:{families:['Varela+Round::latin' ]}};
 			});
         }
     }
+	
+function init() {
+  //create the WMESpeedhelper object
+  var WMESpeedhelper = {},
+    editpanel = $("#edit-panel"),
+    mD = document.createElement("div"),
+    mC = document.createElement("div"),
+    mI = document.createElement("img"),
+    mT = document.createElement("div"),
+    cleardiv = document.createElement("div"),
+    signsError = document.createElement("div");
 
-    async function init() {
+  // Check initialisation
+  if (typeof W == 'undefined' || typeof I18n == 'undefined') {
+    setTimeout(WMESpeedhelper_init, 660);
+    log('Waze object unavailable, map still loading');
+    return;
+  }
+  if (editpanel === undefined) {
+    setTimeout(WMESpeedhelper_init, 660);
+    log('edit-panel info unavailable, map still loading');
+    return;
+  }
+
+  
+
+
+function init() {
         var result = await getLanguages();
 
 
@@ -84,6 +110,9 @@ WebFontConfig = {google:{families:['Varela+Round::latin' ]}};
         }, 250);
 
     }
+
+
+
 
     function selectedFeature(){
         var typeData = null;
