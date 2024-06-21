@@ -21,6 +21,28 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
 /* global I18n */
 /* global $ */
 
+const ScriptName = GM_info.script.name;
+const ScriptVersion = GM_info.script.version;
+
+let ChangeLog = "WazePT has been updated to " + ScriptVersion + "<br />";
+//ChangeLog = ChangeLog + "<br /><b>New: </b>";
+//ChangeLog = ChangeLog + "<br />" + "- Added icon scaling so you can adjust the size of the icons";
+ChangeLog = ChangeLog + "<br /><br /><b>Updated: </b>";
+ChangeLog = ChangeLog + "<br />" + "- Added Gibraltar";
+ChangeLog = ChangeLog + "<br />" + "- Added Extra Sign for Finland";
+
+// Add Google Varela Round font to make sure signs look the same everywhere (less hassle)
+WebFontConfig = {google:{families:['Varela+Round::latin' ]}};
+(function() {
+  var wf = document.createElement('script');
+  wf.src = ('https:' === document.location.protocol ? 'https' : 'http') +
+    '://ajax.googleapis.com/ajax/libs/webfont/1/webfont.js';
+  wf.type = 'text/javascript';
+  wf.async = 'true';
+  var s = document.getElementsByTagName('script')[0];
+  s.parentNode.insertBefore(wf, s);
+})();
+
 
 (function() {
     var version = GM_info.script.version;
@@ -801,5 +823,24 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
         return variable["v"];
     }
 
+function displayChangelog() {
+  if (!WazeWrap.Interface) {
+    setTimeout(displayChangelog, 1000);
+    return;
+  }
+
+  // Alert the user in URComment version updates
+  if (options.lastAnnouncedVersion === ScriptVersion) {
+    log('Version: ' + ScriptVersion);
+  } else {
+    WazeWrap.Interface.ShowScriptUpdate(ScriptName, ScriptVersion, ChangeLog + "<br /><br />", "https://github.com/kid4rm90s/Wazept-Segment-Mod-for-NP");
+
+    const updateName = "#wazept" + ScriptVersion.replaceAll(".", "");
+    $(updateName + " .WWSUFooter a").text("Github")
+
+    options.lastAnnouncedVersion = ScriptVersion;
+    saveOptions(options);
+  }
+}
     bootstrap();
 })();
