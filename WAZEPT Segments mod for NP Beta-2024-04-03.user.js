@@ -97,22 +97,6 @@ function init() {
     return;
   }
 
-  
-
-
-function init() {
-        var result = await getLanguages();
-
-
-        setTimeout(() => {
-            W.selectionManager.events.register('selectionchanged', null, selectedFeature);
-            selectedFeature();
-        }, 250);
-
-    }
-
-
-
 
     function selectedFeature(){
         var typeData = null;
