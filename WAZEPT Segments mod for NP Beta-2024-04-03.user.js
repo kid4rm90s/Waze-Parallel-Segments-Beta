@@ -11,12 +11,16 @@
 /* 
 Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
 */
-// @downloadURL https://update.greasyfork.org/scripts/491466/WAZEPT%20Segments%20mod%20for%20NP.user.js
-// @updateURL https://update.greasyfork.org/scripts/491466/WAZEPT%20Segments%20mod%20for%20NP.meta.js
+// @downloadURL 
+// @updateURL 
 // ==/UserScript==
 /* Changelog
- removed some unnecessary lines
+
 */
+/* global W */
+/* global I18n */
+/* global $ */
+
 
 (function() {
     var version = GM_info.script.version;
@@ -37,11 +41,14 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
     var last_coord_right_last = null;
     var sentido_base = null;
 
+// wait for wme ready then call WMESpeedhelper_init
     function bootstrap() {
         if (typeof W === 'object' && W.userscripts?.state.isReady) {
             init();
         } else {
-            document.addEventListener('wme-ready', init, { once: true });
+            document.addEventListener("wme-ready", init, { 
+			once: true,
+			});
         }
     }
 
