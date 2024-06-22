@@ -4,7 +4,7 @@
 // @namespace      dd@gmail.com
 // @grant          none
 // @grant          GM_info
-// @version        2024.06.22.01
+// @version        2024.06.22.02
 // @include 	     /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
 // @exclude        https://www.waze.com/user/*editor/*
 // @exclude        https://www.waze.com/*/user/*editor/*
@@ -29,7 +29,7 @@ let ChangeLog = "WazePT Segment Mod has been updated to " + ScriptVersion + "<br
 //ChangeLog = ChangeLog + "<br />" + "- Added icon scaling so you can adjust the size of the icons";
 ChangeLog = ChangeLog + "<br /><br /><b>Updated: </b>";
 ChangeLog = ChangeLog + "<br />" + "- Added Gibraltar";
-ChangeLog = ChangeLog + "<br />" + "- Added Extra Sign for Finland";
+ChangeLog = ChangeLog + "<br />" + "- Added Extra Sign for something lines";
 
 // Add Google Varela Round font to make sure signs look the same everywhere (less hassle)
 WebFontConfig = {google:{families:['Varela+Round::latin' ]}};
