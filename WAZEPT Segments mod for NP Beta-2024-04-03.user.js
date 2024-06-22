@@ -1,17 +1,16 @@
 // ==UserScript==
 // @name         WAZEPT Segments mod for NP Beta
-// @version      2024.06.21.03
-// @description  Facilitates the standardisation of segments for left-hand traffic
-// @author       kid4rm90s
-// @include 	   /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
+// @description    Facilitates the standardisation of segments for left-hand traffic
+// @namespace      dd@gmail.com
+// @grant          none
+// @grant          GM_info
+// @version        2024.06.22.01
+// @include 	     /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
 // @exclude        https://www.waze.com/user/*editor/*
 // @exclude        https://www.waze.com/*/user/*editor/*
-// @require https://greasyfork.org/scripts/24851-wazewrap/code/WazeWrap.js
-// @grant        none
-// @namespace https://greasyfork.org/users/1087400
-/* 
-Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
-*/
+// @author        kid4rm90s
+// @license        MIT/BSD/X11
+// @require         https://greasyfork.org/scripts/24851-wazewrap/code/WazeWrap.js
 // @downloadURL 
 // @updateURL 
 // ==/UserScript==
@@ -25,7 +24,7 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
 const ScriptName = GM_info.script.name;
 const ScriptVersion = GM_info.script.version;
 
-let ChangeLog = "WazePT has been updated to " + ScriptVersion + "<br />";
+let ChangeLog = "WazePT Segment Mod has been updated to " + ScriptVersion + "<br />";
 //ChangeLog = ChangeLog + "<br /><b>New: </b>";
 //ChangeLog = ChangeLog + "<br />" + "- Added icon scaling so you can adjust the size of the icons";
 ChangeLog = ChangeLog + "<br /><br /><b>Updated: </b>";
@@ -44,10 +43,7 @@ WebFontConfig = {google:{families:['Varela+Round::latin' ]}};
   s.parentNode.insertBefore(wf, s);
 })();
 
-
-(function() {
-    var version = GM_info.script.version;
-    var roads_id = [3,4,6,7,2,1,22,8,20,17,15,18,19];
+	var roads_id = [3,4,6,7,2,1,22,8,20,17,15,18,19];
     var pedonal_id = [5,10,16];
     var array_config_country = {};
     var array_language_original = {};
@@ -63,21 +59,35 @@ WebFontConfig = {google:{families:['Varela+Round::latin' ]}};
     var last_coord_right_first = null;
     var last_coord_right_last = null;
     var sentido_base = null;
+//removed var sign config
 
-// wait for wme ready then call WMESpeedhelper_init
-    function bootstrap() {
-        if (typeof W === 'object' && W.userscripts?.state.isReady) {
-            init();
-        } else {
-            document.addEventListener("wme-ready", init, { 
-			once: true,
-			});
-        }
-    }
-	
-function init() {
-  //create the WMESpeedhelper object
-  var WMESpeedhelper = {},
+const options = loadOptions();
+
+// Now validate the options are ok
+validateOptions(options);
+
+function log(message) {
+  if (typeof message === 'string') {
+    console.log('WazePT: ' + message);
+  } else {
+    console.log('WazePT: ', message);
+  }
+}
+
+// wait for wme ready then call WazePT_init
+function WazePT_bootstrap() {
+  if (typeof W === 'object' && W.userscripts?.state.isReady) {
+    WazePT_init();
+  } else {
+    document.addEventListener("wme-ready", WazePT_init, {
+      once: true,
+    });
+  }
+}
+
+function WazePT_init() {
+  //create the WazePT object
+  var WazePT = {},
     editpanel = $("#edit-panel"),
     mD = document.createElement("div"),
     mC = document.createElement("div"),
@@ -88,18 +98,29 @@ function init() {
 
   // Check initialisation
   if (typeof W == 'undefined' || typeof I18n == 'undefined') {
-    setTimeout(WMESpeedhelper_init, 660);
+    setTimeout(WazePT_init, 660);
     log('Waze object unavailable, map still loading');
     return;
   }
   if (editpanel === undefined) {
-    setTimeout(WMESpeedhelper_init, 660);
+    setTimeout(WazePT_init, 660);
     log('edit-panel info unavailable, map still loading');
     return;
   }
+  
+  // Show friendly message to users of unsupported countries (for now)
 
+    /*************
+     * EDIT PANEL *
+     *************/
 
-    function selectedFeature(){
+  constructSettings();
+  displayChangelog();
+
+}
+setTimeout(WazePT_bootstrap, 3000);
+
+function selectedFeature(){
         var typeData = null;
         setTimeout(() => {
             if(typeof W.selectionManager.getSelectedFeatures()[0] != 'undefined')
@@ -112,7 +133,6 @@ function init() {
             }
         }, 100)
     }
-
 
     function getConfigsCountry(link) {
         let timeout = 0;
@@ -145,7 +165,6 @@ function init() {
             }
         });
     }
-
     function getLanguages() {
         let timeout = 0;
         return new Promise(resolve => {
@@ -202,12 +221,11 @@ function init() {
             }
         });
     }
-
     function myTimer() {
 
-        var n_bloqueio;
-        var nivel;
-        var lvl_atual;
+        var n_block;
+        var level;
+        var lvl_actual;
         var lvl_max;
 
             if (!$("#signsroad").length) {
@@ -411,7 +429,7 @@ function init() {
     }
 
     function orderSegments() {
-        var segmentosOrdenados = [];
+        var segmentsOrdenados = [];
         var nos = [];
         var noSeguinte = null;
         $.each(W.selectionManager.getSelectedFeatures(), function(i1, segment) {
@@ -445,7 +463,7 @@ function init() {
             }
         });
 
-        let segmentos = W.selectionManager.getSelectedFeatures().length;
+        let segments = W.selectionManager.getSelectedFeatures().length;
 
         $.each(nos, function(i, no) {
             if(no[1] == 1)
@@ -455,25 +473,25 @@ function init() {
             }
         });
 
-        while(segmentos > 0)
+        while(segments > 0)
         {
             $.each(W.selectionManager.getSelectedFeatures(), function(i, segment) {
                 if(segment._wmeObject.attributes.fromNodeID == noSeguinte)
                 {
-                    segmentosOrdenados.push(segment._wmeObject.attributes.id);
+                    segmentsOrdenados.push(segment._wmeObject.attributes.id);
                     noSeguinte = segment._wmeObject.attributes.toNodeID;
-                    segmentos--;
+                    segments--;
                 }
                 else if(segment._wmeObject.attributes.toNodeID == noSeguinte)
                 {
-                    segmentosOrdenados.push(segment._wmeObject.attributes.id);
+                    segmentsOrdenados.push(segment._wmeObject.attributes.id);
                     noSeguinte = segment._wmeObject.attributes.fromNodeID;
-                    segmentos--;
+                    segments--;
                 }
             });
         }
 
-        return segmentosOrdenados;
+        return segmentsOrdenados;
     }
 
     function mainSplitSegments() {
@@ -499,9 +517,9 @@ function init() {
         last_coord_right_last = null;
         sentido_base = null;
 
-        let segmentosOrdenados = orderSegments();
+        let segmentsOrdenados = orderSegments();
 
-        $.each(segmentosOrdenados, function(i, idsegment) {
+        $.each(segmentsOrdenados, function(i, idsegment) {
             var segment = W.model.segments.getObjectById(idsegment);
             let action_left = null;
             let action_right = null;
@@ -576,20 +594,20 @@ function init() {
             seg_right.push(segments[1]);
         });
 
-        $.each(seg_left, function(i, segmentos_left) {
+        $.each(seg_left, function(i, segments_left) {
             if(i < seg_left.length - 1)
             {
-                let segment = W.model.segments.getObjectById(segmentos_left)
+                let segment = W.model.segments.getObjectById(segments_left)
                 if(sentido_base == "AB")
                     W.model.actionManager.add(new ModifyAllConnections(segment.getToNode(),true))
                 if(sentido_base == "BA")
                     W.model.actionManager.add(new ModifyAllConnections(segment.getFromNode(),true))
             }
         });
-        $.each(seg_right, function(i, segmentos_right) {
+        $.each(seg_right, function(i, segments_right) {
             if(i > 0)
             {
-                let segment = W.model.segments.getObjectById(segmentos_right)
+                let segment = W.model.segments.getObjectById(segments_right)
                 if(sentido_base == "AB")
                     W.model.actionManager.add(new ModifyAllConnections(segment.getFromNode(),true))
                 if(sentido_base == "BA")
@@ -693,7 +711,7 @@ function init() {
         var newSegEsq = sel.attributes.geometry.clone();
         var newSegDir = sel.attributes.geometry.clone();
 
-        var segmentos = SplitSegment(sel);
+        var segments = SplitSegment(sel);
 
         leftPoints = leftPoints.reverse();
 
@@ -744,8 +762,8 @@ function init() {
         last_coord_left_last = leftPoints[leftPoints.length - 1];
         last_coord_right_last = rightPoints[rightPoints.length - 1];
 
-        var leftsegment = W.model.segments.getObjectById(segmentos[0]);
-        var rightsegment = W.model.segments.getObjectById(segmentos[1]);
+        var leftsegment = W.model.segments.getObjectById(segments[0]);
+        var rightsegment = W.model.segments.getObjectById(segments[1]);
 
         W.model.actionManager.add(new UpdateSegmentGeometry(leftsegment,leftsegment.attributes.geoJSONGeometry,W.userscripts.toGeoJSONGeometry(newSegEsq)));
         W.model.actionManager.add(new UpdateSegmentGeometry(rightsegment,rightsegment.attributes.geoJSONGeometry,W.userscripts.toGeoJSONGeometry(newSegDir)));
@@ -761,7 +779,7 @@ function init() {
             W.model.actionManager.add(new UpdateObject(leftsegment, {'fwdDirection': false}));
         }
 
-        return segmentos;
+        return segments;
 
     }
 
@@ -836,7 +854,7 @@ function init() {
             return "";
         return variable["v"];
     }
-
+	
 function displayChangelog() {
   if (!WazeWrap.Interface) {
     setTimeout(displayChangelog, 1000);
@@ -847,14 +865,70 @@ function displayChangelog() {
   if (options.lastAnnouncedVersion === ScriptVersion) {
     log('Version: ' + ScriptVersion);
   } else {
-    WazeWrap.Interface.ShowScriptUpdate(ScriptName, ScriptVersion, ChangeLog + "<br /><br />", "https://github.com/kid4rm90s/Wazept-Segment-Mod-for-NP");
+    WazeWrap.Interface.ShowScriptUpdate(ScriptName, ScriptVersion, ChangeLog + "<br /><br />", "https://github.com/kid4rm90s");
 
-    const updateName = "#wazept" + ScriptVersion.replaceAll(".", "");
+    const updateName = "#WazePT" + ScriptVersion.replaceAll(".", "");
     $(updateName + " .WWSUFooter a").text("Github")
 
     options.lastAnnouncedVersion = ScriptVersion;
     saveOptions(options);
   }
 }
-    bootstrap();
-})();
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////
+//// Option Logic
+////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////
+function constructSettings() {
+
+  // -- Set up the tab for the script
+  const { tabLabel, tabPane } = W.userscripts.registerSidebarTab('WazePT');
+  tabLabel.innerText = 'WazePT';
+  tabLabel.title = 'WazePT Settings';
+
+  W.userscripts.waitForElementConnected(tabPane).then(() => {
+    tabPane.innerHTML = '<div id="WazePT-settings"></div>';
+
+    scriptContentPane = $('#WazePT-settings');
+
+    scriptContentPane.append(`<h2 style="margin-top: 0;">WazePT</h2>`);
+    scriptContentPane.append(`<span>Current Version: <b>${ScriptVersion}</b></span>`);
+
+    addTextNumberSettings(scriptContentPane, '', 'Icon Scale in %', 'iconScale');
+  });
+
+}
+
+
+function validateOptions(options) {
+  const defaultOptions = getDefaultOptions();
+
+  // Add missing options
+  for (let key in defaultOptions) {
+    if (!(key in options)) {
+      options[key] = defaultOptions[key]
+    }
+  }
+}
+
+function saveOptions(options) {
+  const optionsJson = JSON.stringify(options);
+  localStorage.setItem("WazePT-Options", optionsJson);
+}
+
+function changeText(event) {
+  options[event.target.id] = event.target.value;
+  saveOptions(options);
+}
+
+function addTextNumberSettings(container, title, label, name, step = 1) {
+  const currentValue = options[name];
+
+  const textInput = $('<wz-text-input type="number" min="0" max="999" step="' + step + '" id="' + name + '" value="' + currentValue + '"></wz-text-input>');
+  const optionHtml = $('<div style="margin-top: 10px;"><span Title="' + title + '">' + label + '</span></div>').append(textInput);
+
+  container.append(optionHtml);
+
+  textInput.on('change', changeText);
+}
