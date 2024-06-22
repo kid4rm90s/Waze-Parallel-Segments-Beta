@@ -6,6 +6,7 @@
 // @include 	   /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
 // @exclude        https://www.waze.com/user/*editor/*
 // @exclude        https://www.waze.com/*/user/*editor/*
+// @require https://greasyfork.org/scripts/24851-wazewrap/code/WazeWrap.js
 // @grant        none
 // @namespace https://greasyfork.org/users/1087400
 /* 
