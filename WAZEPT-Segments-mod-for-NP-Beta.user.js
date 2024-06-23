@@ -17,6 +17,7 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
 */
  
 (function() {
+	"use strict";
     var version = GM_info.script.version;
     var roads_id = [3,4,6,7,2,1,22,8,20,17,15,18,19];
     var pedonal_id = [5,10,16];
@@ -34,6 +35,7 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
     var last_coord_right_first = null;
     var last_coord_right_last = null;
     var sentido_base = null;
+	var editpanel = $("#edit-panel");
  
     function bootstrap() {
         if (typeof W === 'object' && W.userscripts?.state.isReady) {
@@ -41,6 +43,10 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
         } else {
             document.addEventListener('wme-ready', init, { once: true });
         }
+		if (editpanel === undefined) {
+    setTimeout(init, 660);
+    log('edit-panel info unavailable, map still loading');
+    return;
     }
  
     async function init() {
