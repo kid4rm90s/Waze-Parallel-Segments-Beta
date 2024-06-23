@@ -1,49 +1,24 @@
 // ==UserScript==
-// @name         WAZEPT Segments mod for NP Beta
-// @description    Facilitates the standardisation of segments for left-hand traffic
-// @namespace      dd@gmail.com
-// @grant          none
-// @grant          GM_info
-// @version        2024.06.22.02
-// @include 	     /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
+// @name         WAZEPT Segments mod for NP
+// @version      2024.05.30.01
+// @description  Facilitates the standardisation of segments for left-hand traffic
+// @author       kid4rm90s
+// @include 	   /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
 // @exclude        https://www.waze.com/user/*editor/*
 // @exclude        https://www.waze.com/*/user/*editor/*
-// @author        kid4rm90s
-// @license        MIT/BSD/X11
-// @require         https://greasyfork.org/scripts/24851-wazewrap/code/WazeWrap.js
-// @downloadURL 
-// @updateURL 
+// @grant        none
+// @namespace https://greasyfork.org/users/1087400
+/* 
+Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
+*/
 // ==/UserScript==
 /* Changelog
-
+ removed some unnecessary lines
 */
-/* global W */
-/* global I18n */
-/* global $ */
-
-const ScriptName = GM_info.script.name;
-const ScriptVersion = GM_info.script.version;
-
-let ChangeLog = "WazePT Segment Mod has been updated to " + ScriptVersion + "<br />";
-//ChangeLog = ChangeLog + "<br /><b>New: </b>";
-//ChangeLog = ChangeLog + "<br />" + "- Added icon scaling so you can adjust the size of the icons";
-ChangeLog = ChangeLog + "<br /><br /><b>Updated: </b>";
-ChangeLog = ChangeLog + "<br />" + "- Added Gibraltar";
-ChangeLog = ChangeLog + "<br />" + "- Added Extra Sign for something lines";
-
-// Add Google Varela Round font to make sure signs look the same everywhere (less hassle)
-WebFontConfig = {google:{families:['Varela+Round::latin' ]}};
+ 
 (function() {
-  var wf = document.createElement('script');
-  wf.src = ('https:' === document.location.protocol ? 'https' : 'http') +
-    '://ajax.googleapis.com/ajax/libs/webfont/1/webfont.js';
-  wf.type = 'text/javascript';
-  wf.async = 'true';
-  var s = document.getElementsByTagName('script')[0];
-  s.parentNode.insertBefore(wf, s);
-})();
-
-	var roads_id = [3,4,6,7,2,1,22,8,20,17,15,18,19];
+    var version = GM_info.script.version;
+    var roads_id = [3,4,6,7,2,1,22,8,20,17,15,18,19];
     var pedonal_id = [5,10,16];
     var array_config_country = {};
     var array_language_original = {};
@@ -59,68 +34,27 @@ WebFontConfig = {google:{families:['Varela+Round::latin' ]}};
     var last_coord_right_first = null;
     var last_coord_right_last = null;
     var sentido_base = null;
-//removed var sign config
-
-const options = loadOptions();
-
-// Now validate the options are ok
-validateOptions(options);
-
-function log(message) {
-  if (typeof message === 'string') {
-    console.log('WazePT: ' + message);
-  } else {
-    console.log('WazePT: ', message);
-  }
-}
-
-// wait for wme ready then call WazePT_init
-function WazePT_bootstrap() {
-  if (typeof W === 'object' && W.userscripts?.state.isReady) {
-    WazePT_init();
-  } else {
-    document.addEventListener("wme-ready", WazePT_init, {
-      once: true,
-    });
-  }
-}
-
-function WazePT_init() {
-  //create the WazePT object
-  var WazePT = {},
-    editpanel = $("#edit-panel"),
-    mD = document.createElement("div"),
-    mC = document.createElement("div"),
-    mI = document.createElement("img"),
-    mT = document.createElement("div"),
-    cleardiv = document.createElement("div"),
-    signsError = document.createElement("div");
-
-  // Check initialisation
-  if (typeof W == 'undefined' || typeof I18n == 'undefined') {
-    setTimeout(WazePT_init, 660);
-    log('Waze object unavailable, map still loading');
-    return;
-  }
-  if (editpanel === undefined) {
-    setTimeout(WazePT_init, 660);
-    log('edit-panel info unavailable, map still loading');
-    return;
-  }
-  
-  // Show friendly message to users of unsupported countries (for now)
-
-    /*************
-     * EDIT PANEL *
-     *************/
-
-  constructSettings();
-  displayChangelog();
-
-}
-setTimeout(WazePT_bootstrap, 3000);
-
-function selectedFeature(){
+ 
+    function bootstrap() {
+        if (typeof W === 'object' && W.userscripts?.state.isReady) {
+            init();
+        } else {
+            document.addEventListener('wme-ready', init, { once: true });
+        }
+    }
+ 
+    async function init() {
+        var result = await getLanguages();
+ 
+ 
+        setTimeout(() => {
+            W.selectionManager.events.register('selectionchanged', null, selectedFeature);
+            selectedFeature();
+        }, 250);
+ 
+    }
+ 
+    function selectedFeature(){
         var typeData = null;
         setTimeout(() => {
             if(typeof W.selectionManager.getSelectedFeatures()[0] != 'undefined')
@@ -133,16 +67,17 @@ function selectedFeature(){
             }
         }, 100)
     }
-
+ 
+ 
     function getConfigsCountry(link) {
         let timeout = 0;
         return new Promise(resolve => {
-
+ 
             fetch(link)
                 .then(res => res.text())
                 .then(text => {
                 const json = JSON.parse(text.substr(47).slice(0, -2))
-
+ 
                 $(json.table.rows).each(function(){
                     if(verifyNull(this["c"][0]) == true)
                     {
@@ -152,9 +87,9 @@ function selectedFeature(){
                     }
                 });
             })
-
+ 
             var timer = setInterval(check_data, 100);
-
+ 
             function check_data() {
                 if(Object.keys(array_config_country).length > 0 || timeout >= 20)
                 {
@@ -165,16 +100,17 @@ function selectedFeature(){
             }
         });
     }
+ 
     function getLanguages() {
         let timeout = 0;
         return new Promise(resolve => {
-
+ 
 														  
             fetch('https://docs.google.com/spreadsheets/d/1cfvkiDDK5mL1CSzAaXWC8oWyqr3us0CQhqIPegq7Q3g/gviz/tq?tqx=out:json')
                 .then(res => res.text())
                 .then(text => {
                 const json = JSON.parse(text.substr(47).slice(0, -2))
-
+ 
                 let first = false;
                 $(json.table.rows).each(function(){
                     if(first == false)
@@ -182,7 +118,7 @@ function selectedFeature(){
                         first = true;
                         return;
                     }
-
+ 
                     if(verifyNull(this["c"][0]) == "Original String")
                     {
                         array_language_original["btnSplit"] = verifyNull(this["c"][1]);
@@ -198,11 +134,11 @@ function selectedFeature(){
                         array_language_country["strSelMoreSeg"] = verifyNull(this["c"][4]);
                     }
                 });
-
+ 
             })
-
+ 
             var timer = setInterval(check_data, 100);
-
+ 
             function check_data() {
                 if(Object.keys(array_language_original).length > 0 || timeout >= 20)
                 {
@@ -221,23 +157,24 @@ function selectedFeature(){
             }
         });
     }
+ 
     function myTimer() {
-
-        var n_block;
-        var level;
-        var lvl_actual;
+ 
+        var n_bloqueio;
+        var nivel;
+        var lvl_atual;
         var lvl_max;
-
+ 
             if (!$("#signsroad").length) {
                 var signsroad = document.createElement("div");
                 signsroad.id = 'signsroad';
-
+ 
                 
                 var btnAB = document.createElement("button");
                 btnAB.innerHTML = 'A->B';
                 btnAB.id = 'btnAB';
                 btnAB.style.cssText = 'height: 20px;font-size:11px';
-
+ 
                 btnAB.onclick = function() {
                     let myRoad = W.selectionManager.getSelectedFeatures()[0]._wmeObject.attributes;
                     if(myRoad.fwdDirection == true) //A to B
@@ -251,12 +188,12 @@ function selectedFeature(){
                         $temp.remove();
                     }
                 }
-
+ 
                 var btnBA = document.createElement("button");
                 btnBA.innerHTML = 'B->A';
                 btnBA.id = 'btnBA';
                 btnBA.style.cssText = 'height: 20px;font-size:11px';
-
+ 
                 btnBA.onclick =  function() {
                     let myRoad = W.selectionManager.getSelectedFeatures()[0]._wmeObject.attributes;
                     if(myRoad.revDirection == true) //B to A
@@ -270,23 +207,23 @@ function selectedFeature(){
                         $temp.remove();
                     }
                 }
-
+ 
                 var divSentidos = document.createElement("div");
                 divSentidos.id = 'divSentidos';
                 divSentidos.appendChild(btnAB);
                 divSentidos.appendChild(btnBA);
-
+ 
                 var divLandmarkScript = document.createElement("div");
                 divLandmarkScript.id = 'divLandmarkScript';
                 divLandmarkScript.style.cssText = 'float:left;';
                 divLandmarkScript.appendChild(signsroad);
                 divLandmarkScript.appendChild(divSentidos);
-
+ 
                 $("div #segment-edit-general").prepend(divLandmarkScript);
                 $( "#divSentidos" ).hide();
             }
     }
-
+ 
     function defineSpeed (segment, speed) {
         let UpdateObject= require("Waze/Action/UpdateObject");
         if(segment.attributes.fwdMaxSpeed == null && segment.attributes.fwdMaxSpeed == null)
@@ -296,12 +233,12 @@ function selectedFeature(){
         else if(segment.attributes.fwdMaxSpeed == null)
             W.model.actionManager.add(new UpdateObject(segment, {'revMaxSpeed': speed}));
     }
-
+ 
     function defineRoadType (segment, type) {
         let UpdateObject= require("Waze/Action/UpdateObject");
         W.model.actionManager.add(new UpdateObject(segment, {'roadType': type}));
     }
-
+ 
     function defineLockRankRoad (segment, rank) {
         let UpdateObject= require("Waze/Action/UpdateObject");
         rank--;
@@ -314,8 +251,8 @@ function selectedFeature(){
         if(lock < bloquear)
             W.model.actionManager.add(new UpdateObject(segment, {'lockRank': bloquear}));
     }
-
-
+ 
+ 
     function convertSegmentType(segment) {
         let AddSegment = require("Waze/Action/AddSegment");
         let FeatureVectorSegment = require("Waze/Feature/Vector/Segment");
@@ -323,20 +260,20 @@ function selectedFeature(){
         let ModifyAllConnections = require("Waze/Action/ModifyAllConnections");
         let UpdateObject = require("Waze/Action/UpdateObject");
         let ConnectSegment = require("Waze/Action/ConnectSegment");
-
+ 
         var newseg1=new FeatureVectorSegment({geoJSONGeometry:W.userscripts.toGeoJSONGeometry(segment.attributes.geometry)});
-
+ 
         newseg1.copyAttributes(segment);
-
+ 
         newseg1.attributes.roadType=parseInt(array_config_country[indexselected][2]);
         newseg1.attributes.lockRank=null;
         newseg1.setID(null);
-
+ 
         W.model.actionManager.add(new DeleteSegment(segment));
-
+ 
         let action = new AddSegment(newseg1);
         W.model.actionManager.add(action);
-
+ 
         let seg = W.model.segments.getObjectById(action.segment.attributes.id);
         if(roads_id.includes(seg.attributes.roadType))
         {
@@ -350,21 +287,21 @@ function selectedFeature(){
             if(seg.getToNode() != null)
                 W.model.actionManager.add(new ModifyAllConnections(seg.getToNode(),true));
         }
-
+ 
         return seg;
     }
-
+ 
     // Split Segments
-
+ 
     function insertButtons() {
-
+ 
         if (typeof W.loginManager != 'undefined' && !W.loginManager.isLoggedIn()) {
             return;
         }
-
+ 
         if (W.selectionManager.getSelectedFeatures().length === 0)
             return;
-
+ 
         let exit = false;
         $.each(W.selectionManager.getSelectedFeatures(), function(i, segment) {
             if(segment._wmeObject.attributes.fwdLaneCount != 0 || segment._wmeObject.attributes.revLaneCount != 0)
@@ -374,20 +311,20 @@ function selectedFeature(){
             if(pedonal_id.includes(segment._wmeObject.attributes.roadType))
                 exit = true;
         });
-
+ 
         if(exit)
             return;
-
+ 
         try {
             if (document.getElementById('split-segment') !== null)
                 return;
         } catch (e) {}
-
+ 
         var btn1 = $('<wz-button color="secondary" size="sm" style="float:right;margin-top: 5px;">' + language.btnSplit + '</wz-button>');
         btn1.click(mainSplitSegments);
-
+ 
         var strMeters = language.strMeters;
-
+ 
         var selSegmentsDistance = $('<wz-select id="segmentsDistance" data-type="numeric" value="5" style="width: 45%;float:left;" />');
         selSegmentsDistance.append($('<wz-option value="5">5 ' + strMeters + '</wz-option>'));
         selSegmentsDistance.append($('<wz-option value="7">7 ' + strMeters + '</wz-option>'));
@@ -402,9 +339,9 @@ function selectedFeature(){
         selSegmentsDistance.append($('<wz-option value="23">23 ' + strMeters + '</wz-option>'));
         selSegmentsDistance.append($('<wz-option value="25">25 ' + strMeters + '</wz-option>'));
         selSegmentsDistance.append($('<wz-option value="37">37 ' + strMeters + '</wz-option>'));
-
+ 
         var cnt = $('<div id="split-segment" class="form-group" style="display: flex;" />');
-
+ 
         var divGroup1 = $('<div/>');
         divGroup1.append($('<wz-label>' + language.strDistance + '</wz-label>'));
         divGroup1.append(selSegmentsDistance);
@@ -412,24 +349,24 @@ function selectedFeature(){
         //var divControls1 = $('<div class="controls-container" />');
         //divGroup1.append(divControls1);
         cnt.append(divGroup1);
-
+ 
         /*var divGroup2 = $('<div/>');
         var divControls2 = $('<div class="btn-toolbar" />');
         divControls2.append(btn1);
         divGroup2.append(divControls2);
         cnt.append(divGroup2);*/
-
+ 
         $(cnt).insertAfter("#segment-edit-general .more-actions");
-
+ 
         $("#segmentsDistance").val(localStorage.getItem("metersSplitSegment"));
-
+ 
         $('#segmentsDistance').change(function(){
             localStorage.setItem("metersSplitSegment", $("#segmentsDistance").val());
         });
     }
-
+ 
     function orderSegments() {
-        var segmentsOrdenados = [];
+        var segmentosOrdenados = [];
         var nos = [];
         var noSeguinte = null;
         $.each(W.selectionManager.getSelectedFeatures(), function(i1, segment) {
@@ -444,7 +381,7 @@ function selectedFeature(){
                         no1[1] = 2;
                         fromExiste = true;
                     }
-
+ 
                     if(no1[0] == segment._wmeObject.attributes.toNodeID)
                     {
                         no1[1] = 2;
@@ -462,9 +399,9 @@ function selectedFeature(){
                 nos.push([segment._wmeObject.attributes.toNodeID,1]);
             }
         });
-
-        let segments = W.selectionManager.getSelectedFeatures().length;
-
+ 
+        let segmentos = W.selectionManager.getSelectedFeatures().length;
+ 
         $.each(nos, function(i, no) {
             if(no[1] == 1)
             {
@@ -472,43 +409,43 @@ function selectedFeature(){
                 return false;
             }
         });
-
-        while(segments > 0)
+ 
+        while(segmentos > 0)
         {
             $.each(W.selectionManager.getSelectedFeatures(), function(i, segment) {
                 if(segment._wmeObject.attributes.fromNodeID == noSeguinte)
                 {
-                    segmentsOrdenados.push(segment._wmeObject.attributes.id);
+                    segmentosOrdenados.push(segment._wmeObject.attributes.id);
                     noSeguinte = segment._wmeObject.attributes.toNodeID;
-                    segments--;
+                    segmentos--;
                 }
                 else if(segment._wmeObject.attributes.toNodeID == noSeguinte)
                 {
-                    segmentsOrdenados.push(segment._wmeObject.attributes.id);
+                    segmentosOrdenados.push(segment._wmeObject.attributes.id);
                     noSeguinte = segment._wmeObject.attributes.fromNodeID;
-                    segments--;
+                    segmentos--;
                 }
             });
         }
-
-        return segmentsOrdenados;
+ 
+        return segmentosOrdenados;
     }
-
+ 
     function mainSplitSegments() {
-
+ 
         if (W.selectionManager.getSelectedFeatures().length > 1)
             if(!confirm(language.strSelMoreSeg))
                 return;
-
+ 
         var AddNode= require("Waze/Action/AddNode");
         var UpdateObject= require("Waze/Action/UpdateObject");
         var ModifyAllConnections= require("Waze/Action/ModifyAllConnections");
-
+ 
         var distancia = $("#segmentsDistance").val();
         var no = null;
         var seg_left = [];
         var seg_right = [];
-
+ 
         last_node_A = null;
         last_node_B = null;
         last_coord_left_first = null;
@@ -516,10 +453,10 @@ function selectedFeature(){
         last_coord_right_first = null;
         last_coord_right_last = null;
         sentido_base = null;
-
-        let segmentsOrdenados = orderSegments();
-
-        $.each(segmentsOrdenados, function(i, idsegment) {
+ 
+        let segmentosOrdenados = orderSegments();
+ 
+        $.each(segmentosOrdenados, function(i, idsegment) {
             var segment = W.model.segments.getObjectById(idsegment);
             let action_left = null;
             let action_right = null;
@@ -552,14 +489,14 @@ function selectedFeature(){
                 last_node_B = segment.getToNode();
             }
             var segments = createSegments(segment, distancia, no);
-
+ 
             if(i > 0)
             {
                 if(no == "BA")
                 {
                     action_left = new AddNode(W.userscripts.toGeoJSONGeometry(W.model.segments.getObjectById(segments[0]).attributes.geometry.components[0]),[W.model.segments.getObjectById(seg_left[seg_left.length - 1]), W.model.segments.getObjectById(segments[0])]);
                     W.model.actionManager.add(action_left);
-
+ 
                     action_right = new AddNode(W.userscripts.toGeoJSONGeometry(W.model.segments.getObjectById(segments[1]).attributes.geometry.components[0]),[W.model.segments.getObjectById(seg_right[seg_right.length - 1]), W.model.segments.getObjectById(segments[1])]);
                     W.model.actionManager.add(action_right);
                 }
@@ -567,7 +504,7 @@ function selectedFeature(){
                 {
                     action_left = new AddNode(W.userscripts.toGeoJSONGeometry(W.model.segments.getObjectById(segments[0]).attributes.geometry.components[0]),[W.model.segments.getObjectById(seg_left[seg_left.length - 1]), W.model.segments.getObjectById(segments[0])]);
                     W.model.actionManager.add(action_left);
-
+ 
                     action_right = new AddNode(W.userscripts.toGeoJSONGeometry(W.model.segments.getObjectById(segments[1]).attributes.geometry.components[0]),[W.model.segments.getObjectById(seg_right[seg_right.length - 1]), W.model.segments.getObjectById(segments[1])]);
                     W.model.actionManager.add(action_right);
                 }
@@ -575,7 +512,7 @@ function selectedFeature(){
                 {
                     action_left = new AddNode(W.userscripts.toGeoJSONGeometry(W.model.segments.getObjectById(segments[0]).attributes.geometry.components[W.model.segments.getObjectById(segments[0]).attributes.geometry.components.length - 1]),[W.model.segments.getObjectById(seg_left[seg_left.length - 1]), W.model.segments.getObjectById(segments[0])]);
                     W.model.actionManager.add(action_left);
-
+ 
                     action_right = new AddNode(W.userscripts.toGeoJSONGeometry(W.model.segments.getObjectById(segments[1]).attributes.geometry.components[W.model.segments.getObjectById(segments[1]).attributes.geometry.components.length - 1]),[W.model.segments.getObjectById(seg_right[seg_right.length - 1]), W.model.segments.getObjectById(segments[1])]);
                     W.model.actionManager.add(action_right);
                 }
@@ -583,7 +520,7 @@ function selectedFeature(){
                 {
                     action_left = new AddNode(W.userscripts.toGeoJSONGeometry(W.model.segments.getObjectById(segments[0]).attributes.geometry.components[W.model.segments.getObjectById(segments[0]).attributes.geometry.components.length - 1]),[W.model.segments.getObjectById(seg_left[seg_left.length - 1]), W.model.segments.getObjectById(segments[0])]);
                     W.model.actionManager.add(action_left);
-
+ 
                     action_right = new AddNode(W.userscripts.toGeoJSONGeometry(W.model.segments.getObjectById(segments[1]).attributes.geometry.components[W.model.segments.getObjectById(segments[1]).attributes.geometry.components.length - 1]),[W.model.segments.getObjectById(seg_right[seg_right.length - 1]), W.model.segments.getObjectById(segments[1])]);
                     W.model.actionManager.add(action_right);
                 }
@@ -593,39 +530,39 @@ function selectedFeature(){
             seg_left.push(segments[0]);
             seg_right.push(segments[1]);
         });
-
-        $.each(seg_left, function(i, segments_left) {
+ 
+        $.each(seg_left, function(i, segmentos_left) {
             if(i < seg_left.length - 1)
             {
-                let segment = W.model.segments.getObjectById(segments_left)
+                let segment = W.model.segments.getObjectById(segmentos_left)
                 if(sentido_base == "AB")
                     W.model.actionManager.add(new ModifyAllConnections(segment.getToNode(),true))
                 if(sentido_base == "BA")
                     W.model.actionManager.add(new ModifyAllConnections(segment.getFromNode(),true))
             }
         });
-        $.each(seg_right, function(i, segments_right) {
+        $.each(seg_right, function(i, segmentos_right) {
             if(i > 0)
             {
-                let segment = W.model.segments.getObjectById(segments_right)
+                let segment = W.model.segments.getObjectById(segmentos_right)
                 if(sentido_base == "AB")
                     W.model.actionManager.add(new ModifyAllConnections(segment.getFromNode(),true))
                 if(sentido_base == "BA")
                     W.model.actionManager.add(new ModifyAllConnections(segment.getToNode(),true))
             }
         });
-
+ 
     }
-
+ 
     function createSegments(sel, displacement, no) {
         var wazefeatureVectorSegment = require("Waze/Feature/Vector/Segment");
         var UpdateSegmentGeometry= require("Waze/Action/UpdateSegmentGeometry");
         var UpdateObject= require("Waze/Action/UpdateObject");
-
+ 
         var streetVertices = sel.geometry.simplify(0.001).getVertices();
         var leftPoints = null;
         var rightPoints = null;
-
+ 
         var i;
         var leftPa,
             rightPa,
@@ -633,30 +570,30 @@ function selectedFeature(){
             rightPb;
         var prevLeftEq,
             prevRightEq;
-
+ 
         var first = 0;
-
+ 
         for (i = first; i < streetVertices.length - 1; i++) {
             var pa = streetVertices[i];
             var pb = streetVertices[i + 1];
-
+ 
             var points = [pa, pb];
             var ls = new OpenLayers.Geometry.LineString(points);
             var len = ls.getGeodesicLength(W.map.getProjectionObject());
             var scale = (len + displacement / 2) / len;
-
+ 
             leftPa = pa.clone();
             leftPa.resize(scale, pb, 1);
             rightPa = leftPa.clone();
             leftPa.rotate(90, pa);
             rightPa.rotate(-90, pa);
-
+ 
             leftPb = pb.clone();
             leftPb.resize(scale, pa, 1);
             rightPb = leftPb.clone();
             leftPb.rotate(-90, pb);
             rightPb.rotate(90, pb);
-
+ 
             var leftEq = getEquation({
                 'x1': leftPa.x,
                 'y1': leftPa.y,
@@ -679,7 +616,7 @@ function selectedFeature(){
                     if (i >= 0) {
                         leftPoints.unshift(li);
                         rightPoints.push(ri);
-
+ 
                         if (i == 0) {
                             leftPoints = [li];
                             rightPoints = [ri];
@@ -689,7 +626,7 @@ function selectedFeature(){
                     if (i >= 0) {
                         leftPoints.unshift(leftPb.clone());
                         rightPoints.push(rightPb.clone());
-
+ 
                         if (i == 0) {
                             leftPoints = [leftPb];
                             rightPoints = [rightPb];
@@ -697,31 +634,31 @@ function selectedFeature(){
                     }
                 }
             }
-
+ 
             prevLeftEq = leftEq;
             prevRightEq = rightEq;
-
+ 
         }
         leftPoints.push(leftPb);
         rightPoints.push(rightPb);
-
+ 
         leftPoints.unshift(leftPoints[leftPoints.length-1]);
         leftPoints.pop();
-
+ 
         var newSegEsq = sel.attributes.geometry.clone();
         var newSegDir = sel.attributes.geometry.clone();
-
-        var segments = SplitSegment(sel);
-
+ 
+        var segmentos = SplitSegment(sel);
+ 
         leftPoints = leftPoints.reverse();
-
+ 
         if(no == "AA" || no == "BB")
         {
             let aux = leftPoints.reverse();
             leftPoints = rightPoints.reverse();
             rightPoints = aux;
         }
-
+ 
         if(last_coord_left_first != null && last_coord_left_last != null && last_coord_right_last != null && last_coord_right_first != null)
         {
             if(no == "AB")
@@ -753,21 +690,21 @@ function selectedFeature(){
                 rightPoints.unshift(last_coord_right_last);
             }
         }
-
+ 
         newSegEsq.components = leftPoints;
         newSegDir.components = rightPoints;
-
+ 
         last_coord_left_first = leftPoints[0];
         last_coord_right_first = rightPoints[0];
         last_coord_left_last = leftPoints[leftPoints.length - 1];
         last_coord_right_last = rightPoints[rightPoints.length - 1];
-
-        var leftsegment = W.model.segments.getObjectById(segments[0]);
-        var rightsegment = W.model.segments.getObjectById(segments[1]);
-
+ 
+        var leftsegment = W.model.segments.getObjectById(segmentos[0]);
+        var rightsegment = W.model.segments.getObjectById(segmentos[1]);
+ 
         W.model.actionManager.add(new UpdateSegmentGeometry(leftsegment,leftsegment.attributes.geoJSONGeometry,W.userscripts.toGeoJSONGeometry(newSegEsq)));
         W.model.actionManager.add(new UpdateSegmentGeometry(rightsegment,rightsegment.attributes.geoJSONGeometry,W.userscripts.toGeoJSONGeometry(newSegDir)));
-
+ 
         if(no == "AA" || no == "BB")
         {
             W.model.actionManager.add(new UpdateObject(rightsegment, {'revDirection': false, 'fwdMaxSpeed': rightsegment.attributes.revMaxSpeed, 'revMaxSpeed': rightsegment.attributes.fwdMaxSpeed}));
@@ -778,17 +715,17 @@ function selectedFeature(){
             W.model.actionManager.add(new UpdateObject(rightsegment, {'revDirection': false}));
             W.model.actionManager.add(new UpdateObject(leftsegment, {'fwdDirection': false}));
         }
-
-        return segments;
-
+ 
+        return segmentos;
+ 
     }
-
+ 
     function getEquation(segment) {
         if (segment.x2 == segment.x1)
             return {
                 'x': segment.x1
             };
-
+ 
         var slope = (segment.y2 - segment.y1) / (segment.x2 - segment.x1);
         var offset = segment.y1 - (slope * segment.x1);
         return {
@@ -796,13 +733,13 @@ function selectedFeature(){
             'offset': offset
         };
     }
-
-
+ 
+ 
     function intersectX(eqa, eqb, defaultPoint) {
         if ("number" == typeof eqa.slope && "number" == typeof eqb.slope) {
             if (eqa.slope == eqb.slope)
                 return null;
-
+ 
             var ix = (eqb.offset - eqa.offset) / (eqa.slope - eqb.slope);
             var iy = eqa.slope * ix + eqa.offset;
             return new OpenLayers.Geometry.Point(ix, iy);
@@ -813,13 +750,13 @@ function selectedFeature(){
         }
         return null;
     }
-
-
+ 
+ 
     function SplitSegment(road)
     {
         let SplitSegments= require("Waze/Action/SplitSegments");
         let UpdateSegmentGeometry= require("Waze/Action/UpdateSegmentGeometry");
-
+ 
         if(road.arePropertiesEditable())
         {
             var geo=road.geometry.clone();
@@ -846,7 +783,7 @@ function selectedFeature(){
             return RoadIds;
         }
     }
-
+ 
     
     function verifyNull(variable)
     {
@@ -854,81 +791,6 @@ function selectedFeature(){
             return "";
         return variable["v"];
     }
-	
-function displayChangelog() {
-  if (!WazeWrap.Interface) {
-    setTimeout(displayChangelog, 1000);
-    return;
-  }
-
-  // Alert the user in URComment version updates
-  if (options.lastAnnouncedVersion === ScriptVersion) {
-    log('Version: ' + ScriptVersion);
-  } else {
-    WazeWrap.Interface.ShowScriptUpdate(ScriptName, ScriptVersion, ChangeLog + "<br /><br />", "https://github.com/kid4rm90s");
-
-    const updateName = "#WazePT" + ScriptVersion.replaceAll(".", "");
-    $(updateName + " .WWSUFooter a").text("Github")
-
-    options.lastAnnouncedVersion = ScriptVersion;
-    saveOptions(options);
-  }
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////
-////
-//// Option Logic
-////
-////////////////////////////////////////////////////////////////////////////////////////////////////////////
-function constructSettings() {
-
-  // -- Set up the tab for the script
-  const { tabLabel, tabPane } = W.userscripts.registerSidebarTab('WazePT');
-  tabLabel.innerText = 'WazePT';
-  tabLabel.title = 'WazePT Settings';
-
-  W.userscripts.waitForElementConnected(tabPane).then(() => {
-    tabPane.innerHTML = '<div id="WazePT-settings"></div>';
-
-    scriptContentPane = $('#WazePT-settings');
-
-    scriptContentPane.append(`<h2 style="margin-top: 0;">WazePT</h2>`);
-    scriptContentPane.append(`<span>Current Version: <b>${ScriptVersion}</b></span>`);
-
-    addTextNumberSettings(scriptContentPane, '', 'Icon Scale in %', 'iconScale');
-  });
-
-}
-
-
-function validateOptions(options) {
-  const defaultOptions = getDefaultOptions();
-
-  // Add missing options
-  for (let key in defaultOptions) {
-    if (!(key in options)) {
-      options[key] = defaultOptions[key]
-    }
-  }
-}
-
-function saveOptions(options) {
-  const optionsJson = JSON.stringify(options);
-  localStorage.setItem("WazePT-Options", optionsJson);
-}
-
-function changeText(event) {
-  options[event.target.id] = event.target.value;
-  saveOptions(options);
-}
-
-function addTextNumberSettings(container, title, label, name, step = 1) {
-  const currentValue = options[name];
-
-  const textInput = $('<wz-text-input type="number" min="0" max="999" step="' + step + '" id="' + name + '" value="' + currentValue + '"></wz-text-input>');
-  const optionHtml = $('<div style="margin-top: 10px;"><span Title="' + title + '">' + label + '</span></div>').append(textInput);
-
-  container.append(optionHtml);
-
-  textInput.on('change', changeText);
-}
+ 
+    bootstrap();
+})();
