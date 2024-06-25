@@ -48,7 +48,7 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
 
 
         setTimeout(() => {
-            W.selectionManager.events.register('selectionchanged', null, selectedFeature);
+            W.selectionManager.events.register('onSelectionchanged', null, selectedFeature);
             selectedFeature();
         }, 250);
 
