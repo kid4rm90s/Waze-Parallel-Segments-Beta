@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         WAZEPT Segments mod for NP Beta
-// @version      2024.06.23.03
+// @version      2024.06.25.01
 // @description  Facilitates the standardisation of segments for left-hand traffic
 // @author       kid4rm90s
 // @include 	   /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
@@ -15,9 +15,8 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
 /* Changelog
  removed some unnecessary lines
 */
- 
-(function() {
-	"use strict";
+
+ (function() {
     var version = GM_info.script.version;
     var roads_id = [3,4,6,7,2,1,22,8,20,17,15,18,19];
     var pedonal_id = [5,10,16];
@@ -35,31 +34,26 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
     var last_coord_right_first = null;
     var last_coord_right_last = null;
     var sentido_base = null;
-	var editpanel = $("#edit-panel");
- 
+
     function bootstrap() {
         if (typeof W === 'object' && W.userscripts?.state.isReady) {
             init();
         } else {
             document.addEventListener('wme-ready', init, { once: true });
         }
-		if (editpanel === undefined) {
-    setTimeout(init, 660);
-    log('edit-panel info unavailable, map still loading');
-    return;
     }
- 
+
     async function init() {
         var result = await getLanguages();
- 
- 
+
+
         setTimeout(() => {
             W.selectionManager.events.register('selectionchanged', null, selectedFeature);
             selectedFeature();
         }, 250);
- 
+
     }
- 
+
     function selectedFeature(){
         var typeData = null;
         setTimeout(() => {
@@ -73,17 +67,17 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
             }
         }, 100)
     }
- 
- 
+
+
     function getConfigsCountry(link) {
         let timeout = 0;
         return new Promise(resolve => {
- 
+
             fetch(link)
                 .then(res => res.text())
                 .then(text => {
                 const json = JSON.parse(text.substr(47).slice(0, -2))
- 
+
                 $(json.table.rows).each(function(){
                     if(verifyNull(this["c"][0]) == true)
                     {
@@ -93,9 +87,9 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
                     }
                 });
             })
- 
+
             var timer = setInterval(check_data, 100);
- 
+
             function check_data() {
                 if(Object.keys(array_config_country).length > 0 || timeout >= 20)
                 {
@@ -106,17 +100,17 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
             }
         });
     }
- 
+
     function getLanguages() {
         let timeout = 0;
         return new Promise(resolve => {
- 
+
 														  
             fetch('https://docs.google.com/spreadsheets/d/1cfvkiDDK5mL1CSzAaXWC8oWyqr3us0CQhqIPegq7Q3g/gviz/tq?tqx=out:json')
                 .then(res => res.text())
                 .then(text => {
                 const json = JSON.parse(text.substr(47).slice(0, -2))
- 
+
                 let first = false;
                 $(json.table.rows).each(function(){
                     if(first == false)
@@ -124,7 +118,7 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
                         first = true;
                         return;
                     }
- 
+
                     if(verifyNull(this["c"][0]) == "Original String")
                     {
                         array_language_original["btnSplit"] = verifyNull(this["c"][1]);
@@ -140,11 +134,11 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
                         array_language_country["strSelMoreSeg"] = verifyNull(this["c"][4]);
                     }
                 });
- 
+
             })
- 
+
             var timer = setInterval(check_data, 100);
- 
+
             function check_data() {
                 if(Object.keys(array_language_original).length > 0 || timeout >= 20)
                 {
@@ -163,24 +157,24 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
             }
         });
     }
- 
+
     function myTimer() {
- 
+
         var n_bloqueio;
         var nivel;
         var lvl_atual;
         var lvl_max;
- 
+
             if (!$("#signsroad").length) {
                 var signsroad = document.createElement("div");
                 signsroad.id = 'signsroad';
- 
+
                 
                 var btnAB = document.createElement("button");
                 btnAB.innerHTML = 'A->B';
                 btnAB.id = 'btnAB';
                 btnAB.style.cssText = 'height: 20px;font-size:11px';
- 
+
                 btnAB.onclick = function() {
                     let myRoad = W.selectionManager.getSelectedFeatures()[0]._wmeObject.attributes;
                     if(myRoad.fwdDirection == true) //A to B
@@ -194,12 +188,12 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
                         $temp.remove();
                     }
                 }
- 
+
                 var btnBA = document.createElement("button");
                 btnBA.innerHTML = 'B->A';
                 btnBA.id = 'btnBA';
                 btnBA.style.cssText = 'height: 20px;font-size:11px';
- 
+
                 btnBA.onclick =  function() {
                     let myRoad = W.selectionManager.getSelectedFeatures()[0]._wmeObject.attributes;
                     if(myRoad.revDirection == true) //B to A
@@ -213,23 +207,23 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
                         $temp.remove();
                     }
                 }
- 
+
                 var divSentidos = document.createElement("div");
                 divSentidos.id = 'divSentidos';
                 divSentidos.appendChild(btnAB);
                 divSentidos.appendChild(btnBA);
- 
+
                 var divLandmarkScript = document.createElement("div");
                 divLandmarkScript.id = 'divLandmarkScript';
                 divLandmarkScript.style.cssText = 'float:left;';
                 divLandmarkScript.appendChild(signsroad);
                 divLandmarkScript.appendChild(divSentidos);
- 
+
                 $("div #segment-edit-general").prepend(divLandmarkScript);
                 $( "#divSentidos" ).hide();
             }
     }
- 
+
     function defineSpeed (segment, speed) {
         let UpdateObject= require("Waze/Action/UpdateObject");
         if(segment.attributes.fwdMaxSpeed == null && segment.attributes.fwdMaxSpeed == null)
@@ -239,12 +233,12 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
         else if(segment.attributes.fwdMaxSpeed == null)
             W.model.actionManager.add(new UpdateObject(segment, {'revMaxSpeed': speed}));
     }
- 
+
     function defineRoadType (segment, type) {
         let UpdateObject= require("Waze/Action/UpdateObject");
         W.model.actionManager.add(new UpdateObject(segment, {'roadType': type}));
     }
- 
+
     function defineLockRankRoad (segment, rank) {
         let UpdateObject= require("Waze/Action/UpdateObject");
         rank--;
@@ -257,8 +251,8 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
         if(lock < bloquear)
             W.model.actionManager.add(new UpdateObject(segment, {'lockRank': bloquear}));
     }
- 
- 
+
+
     function convertSegmentType(segment) {
         let AddSegment = require("Waze/Action/AddSegment");
         let FeatureVectorSegment = require("Waze/Feature/Vector/Segment");
@@ -266,20 +260,20 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
         let ModifyAllConnections = require("Waze/Action/ModifyAllConnections");
         let UpdateObject = require("Waze/Action/UpdateObject");
         let ConnectSegment = require("Waze/Action/ConnectSegment");
- 
+
         var newseg1=new FeatureVectorSegment({geoJSONGeometry:W.userscripts.toGeoJSONGeometry(segment.attributes.geometry)});
- 
+
         newseg1.copyAttributes(segment);
- 
+
         newseg1.attributes.roadType=parseInt(array_config_country[indexselected][2]);
         newseg1.attributes.lockRank=null;
         newseg1.setID(null);
- 
+
         W.model.actionManager.add(new DeleteSegment(segment));
- 
+
         let action = new AddSegment(newseg1);
         W.model.actionManager.add(action);
- 
+
         let seg = W.model.segments.getObjectById(action.segment.attributes.id);
         if(roads_id.includes(seg.attributes.roadType))
         {
@@ -293,21 +287,21 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
             if(seg.getToNode() != null)
                 W.model.actionManager.add(new ModifyAllConnections(seg.getToNode(),true));
         }
- 
+
         return seg;
     }
- 
+
     // Split Segments
- 
+
     function insertButtons() {
- 
+
         if (typeof W.loginManager != 'undefined' && !W.loginManager.isLoggedIn()) {
             return;
         }
- 
+
         if (W.selectionManager.getSelectedFeatures().length === 0)
             return;
- 
+
         let exit = false;
         $.each(W.selectionManager.getSelectedFeatures(), function(i, segment) {
             if(segment._wmeObject.attributes.fwdLaneCount != 0 || segment._wmeObject.attributes.revLaneCount != 0)
@@ -317,20 +311,20 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
             if(pedonal_id.includes(segment._wmeObject.attributes.roadType))
                 exit = true;
         });
- 
+
         if(exit)
             return;
- 
+
         try {
             if (document.getElementById('split-segment') !== null)
                 return;
         } catch (e) {}
- 
+
         var btn1 = $('<wz-button color="secondary" size="sm" style="float:right;margin-top: 5px;">' + language.btnSplit + '</wz-button>');
         btn1.click(mainSplitSegments);
- 
+
         var strMeters = language.strMeters;
- 
+
         var selSegmentsDistance = $('<wz-select id="segmentsDistance" data-type="numeric" value="5" style="width: 45%;float:left;" />');
         selSegmentsDistance.append($('<wz-option value="5">5 ' + strMeters + '</wz-option>'));
         selSegmentsDistance.append($('<wz-option value="7">7 ' + strMeters + '</wz-option>'));
@@ -345,9 +339,9 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
         selSegmentsDistance.append($('<wz-option value="23">23 ' + strMeters + '</wz-option>'));
         selSegmentsDistance.append($('<wz-option value="25">25 ' + strMeters + '</wz-option>'));
         selSegmentsDistance.append($('<wz-option value="37">37 ' + strMeters + '</wz-option>'));
- 
+
         var cnt = $('<div id="split-segment" class="form-group" style="display: flex;" />');
- 
+
         var divGroup1 = $('<div/>');
         divGroup1.append($('<wz-label>' + language.strDistance + '</wz-label>'));
         divGroup1.append(selSegmentsDistance);
@@ -355,22 +349,22 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
         //var divControls1 = $('<div class="controls-container" />');
         //divGroup1.append(divControls1);
         cnt.append(divGroup1);
- 
+
         /*var divGroup2 = $('<div/>');
         var divControls2 = $('<div class="btn-toolbar" />');
         divControls2.append(btn1);
         divGroup2.append(divControls2);
         cnt.append(divGroup2);*/
- 
+
         $(cnt).insertAfter("#segment-edit-general .more-actions");
- 
+
         $("#segmentsDistance").val(localStorage.getItem("metersSplitSegment"));
- 
+
         $('#segmentsDistance').change(function(){
             localStorage.setItem("metersSplitSegment", $("#segmentsDistance").val());
         });
     }
- 
+
     function orderSegments() {
         var segmentosOrdenados = [];
         var nos = [];
@@ -387,7 +381,7 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
                         no1[1] = 2;
                         fromExiste = true;
                     }
- 
+
                     if(no1[0] == segment._wmeObject.attributes.toNodeID)
                     {
                         no1[1] = 2;
@@ -405,9 +399,9 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
                 nos.push([segment._wmeObject.attributes.toNodeID,1]);
             }
         });
- 
+
         let segmentos = W.selectionManager.getSelectedFeatures().length;
- 
+
         $.each(nos, function(i, no) {
             if(no[1] == 1)
             {
@@ -415,7 +409,7 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
                 return false;
             }
         });
- 
+
         while(segmentos > 0)
         {
             $.each(W.selectionManager.getSelectedFeatures(), function(i, segment) {
@@ -433,25 +427,25 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
                 }
             });
         }
- 
+
         return segmentosOrdenados;
     }
- 
+
     function mainSplitSegments() {
- 
+
         if (W.selectionManager.getSelectedFeatures().length > 1)
             if(!confirm(language.strSelMoreSeg))
                 return;
- 
+
         var AddNode= require("Waze/Action/AddNode");
         var UpdateObject= require("Waze/Action/UpdateObject");
         var ModifyAllConnections= require("Waze/Action/ModifyAllConnections");
- 
+
         var distancia = $("#segmentsDistance").val();
         var no = null;
         var seg_left = [];
         var seg_right = [];
- 
+
         last_node_A = null;
         last_node_B = null;
         last_coord_left_first = null;
@@ -459,9 +453,9 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
         last_coord_right_first = null;
         last_coord_right_last = null;
         sentido_base = null;
- 
+
         let segmentosOrdenados = orderSegments();
- 
+
         $.each(segmentosOrdenados, function(i, idsegment) {
             var segment = W.model.segments.getObjectById(idsegment);
             let action_left = null;
@@ -495,14 +489,14 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
                 last_node_B = segment.getToNode();
             }
             var segments = createSegments(segment, distancia, no);
- 
+
             if(i > 0)
             {
                 if(no == "BA")
                 {
                     action_left = new AddNode(W.userscripts.toGeoJSONGeometry(W.model.segments.getObjectById(segments[0]).attributes.geometry.components[0]),[W.model.segments.getObjectById(seg_left[seg_left.length - 1]), W.model.segments.getObjectById(segments[0])]);
                     W.model.actionManager.add(action_left);
- 
+
                     action_right = new AddNode(W.userscripts.toGeoJSONGeometry(W.model.segments.getObjectById(segments[1]).attributes.geometry.components[0]),[W.model.segments.getObjectById(seg_right[seg_right.length - 1]), W.model.segments.getObjectById(segments[1])]);
                     W.model.actionManager.add(action_right);
                 }
@@ -510,7 +504,7 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
                 {
                     action_left = new AddNode(W.userscripts.toGeoJSONGeometry(W.model.segments.getObjectById(segments[0]).attributes.geometry.components[0]),[W.model.segments.getObjectById(seg_left[seg_left.length - 1]), W.model.segments.getObjectById(segments[0])]);
                     W.model.actionManager.add(action_left);
- 
+
                     action_right = new AddNode(W.userscripts.toGeoJSONGeometry(W.model.segments.getObjectById(segments[1]).attributes.geometry.components[0]),[W.model.segments.getObjectById(seg_right[seg_right.length - 1]), W.model.segments.getObjectById(segments[1])]);
                     W.model.actionManager.add(action_right);
                 }
@@ -518,7 +512,7 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
                 {
                     action_left = new AddNode(W.userscripts.toGeoJSONGeometry(W.model.segments.getObjectById(segments[0]).attributes.geometry.components[W.model.segments.getObjectById(segments[0]).attributes.geometry.components.length - 1]),[W.model.segments.getObjectById(seg_left[seg_left.length - 1]), W.model.segments.getObjectById(segments[0])]);
                     W.model.actionManager.add(action_left);
- 
+
                     action_right = new AddNode(W.userscripts.toGeoJSONGeometry(W.model.segments.getObjectById(segments[1]).attributes.geometry.components[W.model.segments.getObjectById(segments[1]).attributes.geometry.components.length - 1]),[W.model.segments.getObjectById(seg_right[seg_right.length - 1]), W.model.segments.getObjectById(segments[1])]);
                     W.model.actionManager.add(action_right);
                 }
@@ -526,7 +520,7 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
                 {
                     action_left = new AddNode(W.userscripts.toGeoJSONGeometry(W.model.segments.getObjectById(segments[0]).attributes.geometry.components[W.model.segments.getObjectById(segments[0]).attributes.geometry.components.length - 1]),[W.model.segments.getObjectById(seg_left[seg_left.length - 1]), W.model.segments.getObjectById(segments[0])]);
                     W.model.actionManager.add(action_left);
- 
+
                     action_right = new AddNode(W.userscripts.toGeoJSONGeometry(W.model.segments.getObjectById(segments[1]).attributes.geometry.components[W.model.segments.getObjectById(segments[1]).attributes.geometry.components.length - 1]),[W.model.segments.getObjectById(seg_right[seg_right.length - 1]), W.model.segments.getObjectById(segments[1])]);
                     W.model.actionManager.add(action_right);
                 }
@@ -536,7 +530,7 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
             seg_left.push(segments[0]);
             seg_right.push(segments[1]);
         });
- 
+
         $.each(seg_left, function(i, segmentos_left) {
             if(i < seg_left.length - 1)
             {
@@ -557,18 +551,18 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
                     W.model.actionManager.add(new ModifyAllConnections(segment.getToNode(),true))
             }
         });
- 
+
     }
- 
+
     function createSegments(sel, displacement, no) {
         var wazefeatureVectorSegment = require("Waze/Feature/Vector/Segment");
         var UpdateSegmentGeometry= require("Waze/Action/UpdateSegmentGeometry");
         var UpdateObject= require("Waze/Action/UpdateObject");
- 
+
         var streetVertices = sel.geometry.simplify(0.001).getVertices();
         var leftPoints = null;
         var rightPoints = null;
- 
+
         var i;
         var leftPa,
             rightPa,
@@ -576,30 +570,30 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
             rightPb;
         var prevLeftEq,
             prevRightEq;
- 
+
         var first = 0;
- 
+
         for (i = first; i < streetVertices.length - 1; i++) {
             var pa = streetVertices[i];
             var pb = streetVertices[i + 1];
- 
+
             var points = [pa, pb];
             var ls = new OpenLayers.Geometry.LineString(points);
             var len = ls.getGeodesicLength(W.map.getProjectionObject());
             var scale = (len + displacement / 2) / len;
- 
+
             leftPa = pa.clone();
             leftPa.resize(scale, pb, 1);
             rightPa = leftPa.clone();
             leftPa.rotate(90, pa);
             rightPa.rotate(-90, pa);
- 
+
             leftPb = pb.clone();
             leftPb.resize(scale, pa, 1);
             rightPb = leftPb.clone();
             leftPb.rotate(-90, pb);
             rightPb.rotate(90, pb);
- 
+
             var leftEq = getEquation({
                 'x1': leftPa.x,
                 'y1': leftPa.y,
@@ -622,7 +616,7 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
                     if (i >= 0) {
                         leftPoints.unshift(li);
                         rightPoints.push(ri);
- 
+
                         if (i == 0) {
                             leftPoints = [li];
                             rightPoints = [ri];
@@ -632,7 +626,7 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
                     if (i >= 0) {
                         leftPoints.unshift(leftPb.clone());
                         rightPoints.push(rightPb.clone());
- 
+
                         if (i == 0) {
                             leftPoints = [leftPb];
                             rightPoints = [rightPb];
@@ -640,31 +634,31 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
                     }
                 }
             }
- 
+
             prevLeftEq = leftEq;
             prevRightEq = rightEq;
- 
+
         }
         leftPoints.push(leftPb);
         rightPoints.push(rightPb);
- 
+
         leftPoints.unshift(leftPoints[leftPoints.length-1]);
         leftPoints.pop();
- 
+
         var newSegEsq = sel.attributes.geometry.clone();
         var newSegDir = sel.attributes.geometry.clone();
- 
+
         var segmentos = SplitSegment(sel);
- 
+
         leftPoints = leftPoints.reverse();
- 
+
         if(no == "AA" || no == "BB")
         {
             let aux = leftPoints.reverse();
             leftPoints = rightPoints.reverse();
             rightPoints = aux;
         }
- 
+
         if(last_coord_left_first != null && last_coord_left_last != null && last_coord_right_last != null && last_coord_right_first != null)
         {
             if(no == "AB")
@@ -696,21 +690,21 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
                 rightPoints.unshift(last_coord_right_last);
             }
         }
- 
+
         newSegEsq.components = leftPoints;
         newSegDir.components = rightPoints;
- 
+
         last_coord_left_first = leftPoints[0];
         last_coord_right_first = rightPoints[0];
         last_coord_left_last = leftPoints[leftPoints.length - 1];
         last_coord_right_last = rightPoints[rightPoints.length - 1];
- 
+
         var leftsegment = W.model.segments.getObjectById(segmentos[0]);
         var rightsegment = W.model.segments.getObjectById(segmentos[1]);
- 
+
         W.model.actionManager.add(new UpdateSegmentGeometry(leftsegment,leftsegment.attributes.geoJSONGeometry,W.userscripts.toGeoJSONGeometry(newSegEsq)));
         W.model.actionManager.add(new UpdateSegmentGeometry(rightsegment,rightsegment.attributes.geoJSONGeometry,W.userscripts.toGeoJSONGeometry(newSegDir)));
- 
+
         if(no == "AA" || no == "BB")
         {
             W.model.actionManager.add(new UpdateObject(rightsegment, {'revDirection': false, 'fwdMaxSpeed': rightsegment.attributes.revMaxSpeed, 'revMaxSpeed': rightsegment.attributes.fwdMaxSpeed}));
@@ -721,17 +715,17 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
             W.model.actionManager.add(new UpdateObject(rightsegment, {'revDirection': false}));
             W.model.actionManager.add(new UpdateObject(leftsegment, {'fwdDirection': false}));
         }
- 
+
         return segmentos;
- 
+
     }
- 
+
     function getEquation(segment) {
         if (segment.x2 == segment.x1)
             return {
                 'x': segment.x1
             };
- 
+
         var slope = (segment.y2 - segment.y1) / (segment.x2 - segment.x1);
         var offset = segment.y1 - (slope * segment.x1);
         return {
@@ -739,13 +733,13 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
             'offset': offset
         };
     }
- 
- 
+
+
     function intersectX(eqa, eqb, defaultPoint) {
         if ("number" == typeof eqa.slope && "number" == typeof eqb.slope) {
             if (eqa.slope == eqb.slope)
                 return null;
- 
+
             var ix = (eqb.offset - eqa.offset) / (eqa.slope - eqb.slope);
             var iy = eqa.slope * ix + eqa.offset;
             return new OpenLayers.Geometry.Point(ix, iy);
@@ -756,13 +750,13 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
         }
         return null;
     }
- 
- 
+
+
     function SplitSegment(road)
     {
         let SplitSegments= require("Waze/Action/SplitSegments");
         let UpdateSegmentGeometry= require("Waze/Action/UpdateSegmentGeometry");
- 
+
         if(road.arePropertiesEditable())
         {
             var geo=road.geometry.clone();
@@ -789,7 +783,7 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
             return RoadIds;
         }
     }
- 
+
     
     function verifyNull(variable)
     {
@@ -797,6 +791,6 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
             return "";
         return variable["v"];
     }
- 
+
     bootstrap();
 })();
