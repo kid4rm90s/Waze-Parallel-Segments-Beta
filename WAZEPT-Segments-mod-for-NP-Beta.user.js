@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         WAZEPT Segments mod for NP Beta
-// @version      2024.06.30.01
+// @version      2024.06.30.02
 // @description  Facilitates the standardisation of segments for left-hand traffic
 // @author       kid4rm90s
 // @include 	   /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
@@ -55,7 +55,7 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
 
     }
 
-    //function selectedFeature(){
+    function selectedFeature(){
         var typeData = null;
         setTimeout(() => {
             if(typeof W.selectionManager.getSelectedFeatures()[0] != 'undefined')
@@ -220,7 +220,8 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
                 divLandmarkScript.appendChild(signsroad);
                 divLandmarkScript.appendChild(divSentidos);
 
-                $("div #segment-edit-general").prepend(divLandmarkScript);
+                //$("div #segment-edit-general").prepend(divLandmarkScript);
+				$("#segment-edit-general form.attributes-form")).prepend(divLandmarkScript);
                 $( "#divSentidos" ).hide();
             }
     }
