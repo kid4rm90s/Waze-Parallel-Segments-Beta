@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         WAZEPT Segments mod for NP Beta
-// @version      2024.06.30.02
+// @version      2024.06.30.03
 // @description  Facilitates the standardisation of segments for left-hand traffic
 // @author       kid4rm90s
 // @include 	   /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
@@ -15,8 +15,7 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
 /* Changelog
  removed some unnecessary lines
 */
-
- (function() {
+(function() {
     var version = GM_info.script.version;
     var roads_id = [3,4,6,7,2,1,22,8,20,17,15,18,19];
     var pedonal_id = [5,10,16];
@@ -48,19 +47,16 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
 
 
         setTimeout(() => {
-  //          W.selectionManager.events.register('Selectionchanged', null, selectedFeature);
-              W.selectionManager.events.register('Selectionchanged', null, insertbuttons);
+            W.selectionManager.events.register('selectionchanged', null, selectedFeature);
             selectedFeature();
         }, 250);
 
     }
 
     function selectedFeature(){
-        var typeData = null;
-        setTimeout(() => {
-            if(typeof W.selectionManager.getSelectedFeatures()[0] != 'undefined')
-                typeData = W.selectionManager.getSelectedFeatures()[0]._wmeObject.type;
-            if (typeData == "segment")
+	for (var s = W.selectionManager.getSelectedFeatures().length - 1; s >= 0; s--) {
+                var sel = W.selectionManager.getSelectedFeatures()[s]._wmeObject;
+                if (sel.type == "segment")
             {
                 myTimer();
                 if(W.loginManager.getUserRank() >= 3)
@@ -220,8 +216,7 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
                 divLandmarkScript.appendChild(signsroad);
                 divLandmarkScript.appendChild(divSentidos);
 
-                //$("div #segment-edit-general").prepend(divLandmarkScript);
-				$("#segment-edit-general form.attributes-form")).prepend(divLandmarkScript);
+                $("div #segment-edit-general form.attributes-form").prepend(divLandmarkScript);
                 $( "#divSentidos" ).hide();
             }
     }
@@ -325,25 +320,34 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
         var btn1 = $('<wz-button color="secondary" size="sm" style="float:right;margin-top: 5px;">' + language.btnSplit + '</wz-button>');
         btn1.click(mainSplitSegments);
 
-        var strMeters = language.strMeters;
+        //var strMeters = language.strMeters;
+		const DistanceValues = [5, 7, 9, 11, 13, 14, 15, 17, 19, 21, 23, 25];
+        
+		//var selSegmentsDistance = $('<wz-select id="segmentsDistance" data-type="numeric" value="5" style="width: 45%;float:left;" />');
+		var selSegmentsDistance = $('<wz-select name="SegmentDistance" />');
+        //selSegmentsDistance.append($('<wz-option value="5">5 ' + strMeters + '</wz-option>'));
+        //selSegmentsDistance.append($('<wz-option value="7">7 ' + strMeters + '</wz-option>'));
+        //selSegmentsDistance.append($('<wz-option value="9">9 ' + strMeters + '</wz-option>'));
+        //selSegmentsDistance.append($('<wz-option value="11">11 ' + strMeters + '</wz-option>'));
+        //selSegmentsDistance.append($('<wz-option value="13">13 ' + strMeters + '</wz-option>'));
+        //selSegmentsDistance.append($('<wz-option value="14">14 ' + strMeters + '</wz-option>'));
+        //selSegmentsDistance.append($('<wz-option value="15">15 ' + strMeters + '</wz-option>'));
+        //selSegmentsDistance.append($('<wz-option value="17">17 ' + strMeters + '</wz-option>'));
+        //selSegmentsDistance.append($('<wz-option value="19">19 ' + strMeters + '</wz-option>'));
+        //selSegmentsDistance.append($('<wz-option value="21">21 ' + strMeters + '</wz-option>'));
+        //selSegmentsDistance.append($('<wz-option value="23">23 ' + strMeters + '</wz-option>'));
+        //selSegmentsDistance.append($('<wz-option value="25">25 ' + strMeters + '</wz-option>'));
+        //selSegmentsDistance.append($('<wz-option value="37">37 ' + strMeters + '</wz-option>'));
 
-        var selSegmentsDistance = $('<wz-select id="segmentsDistance" data-type="numeric" value="5" style="width: 45%;float:left;" />');
-        selSegmentsDistance.append($('<wz-option value="5">5 ' + strMeters + '</wz-option>'));
-        selSegmentsDistance.append($('<wz-option value="7">7 ' + strMeters + '</wz-option>'));
-        selSegmentsDistance.append($('<wz-option value="9">9 ' + strMeters + '</wz-option>'));
-        selSegmentsDistance.append($('<wz-option value="11">11 ' + strMeters + '</wz-option>'));
-        selSegmentsDistance.append($('<wz-option value="13">13 ' + strMeters + '</wz-option>'));
-        selSegmentsDistance.append($('<wz-option value="14">14 ' + strMeters + '</wz-option>'));
-        selSegmentsDistance.append($('<wz-option value="15">15 ' + strMeters + '</wz-option>'));
-        selSegmentsDistance.append($('<wz-option value="17">17 ' + strMeters + '</wz-option>'));
-        selSegmentsDistance.append($('<wz-option value="19">19 ' + strMeters + '</wz-option>'));
-        selSegmentsDistance.append($('<wz-option value="21">21 ' + strMeters + '</wz-option>'));
-        selSegmentsDistance.append($('<wz-option value="23">23 ' + strMeters + '</wz-option>'));
-        selSegmentsDistance.append($('<wz-option value="25">25 ' + strMeters + '</wz-option>'));
-        selSegmentsDistance.append($('<wz-option value="37">37 ' + strMeters + '</wz-option>'));
-
-        var cnt = $('<div id="split-segment" class="form-group" style="display: flex;" />');
-
+       // var cnt = $('<div id="split-segment" class="form-group" style="display: flex;" />');
+		var selSegmentsDistance = $('<wz-select name="segmentsDistance" />');
+            for (let w = 0; w < SegmentsDistance.length; w++) {
+                selSegmentsDistance.append($(`<wz-option value="${distanceValues[w]}">${distanceValues[w]}</wz-option>`));
+            }
+            selSegmentsDistance.change(function () {
+                setLastSegmentsDistance(this.value);
+            });
+			
         var divGroup1 = $('<div/>');
         divGroup1.append($('<wz-label>' + language.strDistance + '</wz-label>'));
         divGroup1.append(selSegmentsDistance);
