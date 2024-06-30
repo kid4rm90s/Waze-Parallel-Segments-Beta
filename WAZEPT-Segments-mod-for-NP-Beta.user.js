@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         WAZEPT Segments mod for NP Beta
-// @version      2024.06.25.02
+// @version      2024.06.30.01
 // @description  Facilitates the standardisation of segments for left-hand traffic
 // @author       kid4rm90s
 // @include 	   /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
@@ -48,13 +48,14 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
 
 
         setTimeout(() => {
-            W.selectionManager.events.register('onSelectionchanged', null, selectedFeature);
+  //          W.selectionManager.events.register('Selectionchanged', null, selectedFeature);
+              W.selectionManager.events.register('Selectionchanged', null, insertbuttons);
             selectedFeature();
         }, 250);
 
     }
 
-    function selectedFeature(){
+    //function selectedFeature(){
         var typeData = null;
         setTimeout(() => {
             if(typeof W.selectionManager.getSelectedFeatures()[0] != 'undefined')
