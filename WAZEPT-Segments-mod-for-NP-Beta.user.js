@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WAZEPT Segments mod for NP Beta
-// @version      2024.07.01.02
-// @description  Facilitates the standardisation of segments for left-hand traffic
+// @version      2024.11.16.01
+// @description  Facilitates the standardisation of segments for left-hand traffic AKA right-hand-driving
 // @author       kid4rm90s
 // @include 	   /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
 // @exclude        https://www.waze.com/user/*editor/*
@@ -11,9 +11,11 @@
 /* 
 Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
 */
+// @downloadURL 
+// @updateURL 
 // ==/UserScript==
 /* Changelog
- removed some unnecessary lines
+ Added segment distance
 */
 
 (function() {
@@ -329,6 +331,7 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
         selSegmentsDistance.append($('<wz-option value="5">5 ' + strMeters + '</wz-option>'));
         selSegmentsDistance.append($('<wz-option value="7">7 ' + strMeters + '</wz-option>'));
         selSegmentsDistance.append($('<wz-option value="9">9 ' + strMeters + '</wz-option>'));
+		selSegmentsDistance.append($('<wz-option value="10">10 ' + strMeters + '</wz-option>'));
         selSegmentsDistance.append($('<wz-option value="11">11 ' + strMeters + '</wz-option>'));
         selSegmentsDistance.append($('<wz-option value="13">13 ' + strMeters + '</wz-option>'));
         selSegmentsDistance.append($('<wz-option value="14">14 ' + strMeters + '</wz-option>'));
@@ -355,6 +358,8 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
         divControls2.append(btn1);
         divGroup2.append(divControls2);
         cnt.append(divGroup2);*/
+		
+//creates form at edit panel side
 
         $(cnt).insertAfter("#segment-edit-general .attributes-form");
 
