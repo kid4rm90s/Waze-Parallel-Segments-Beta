@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         WAZEPT Segments mod for NP Beta
-// @version      2024.11.16.01
+// @version      2025.05.27.01
 // @description  Facilitates the standardisation of segments for left-hand traffic AKA right-hand-driving
 // @author       kid4rm90s
 // @include 	   /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
@@ -720,6 +720,9 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
             W.model.actionManager.add(new UpdateObject(rightsegment, {'revDirection': false}));
             W.model.actionManager.add(new UpdateObject(leftsegment, {'fwdDirection': false}));
         }
+
+        W.model.actionManager.add(new UpdateObject(leftsegment,  {'fwdDirection': true, 'revDirection': false}));
+        W.model.actionManager.add(new UpdateObject(rightsegment, {'fwdDirection': true, 'revDirection': false}));
 
         return segmentos;
 
