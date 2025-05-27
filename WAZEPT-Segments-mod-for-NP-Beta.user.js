@@ -720,6 +720,7 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
             W.model.actionManager.add(new UpdateObject(rightsegment, {'revDirection': false}));
             W.model.actionManager.add(new UpdateObject(leftsegment, {'fwdDirection': false}));
         }
+
         return segmentos;
 
     }
