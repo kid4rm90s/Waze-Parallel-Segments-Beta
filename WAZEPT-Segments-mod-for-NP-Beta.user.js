@@ -49,8 +49,7 @@
     const updateMessage = 'testing update message';
     const scriptName = GM_info.script.name;
     const scriptVersion = GM_info.script.version;
-    const downloadUrl = 'https://github.com/kid4rm90s/Wazept-Segment-Mod-for-NP-Beta/raw/refs/heads/main/WAZEPT-Segments-mod-for-NP-Beta.user.js';
-    // const forumUrl = 'https://www.waze.com/forum/viewtopic.php?f=819&t=279838'; 
+    const downloadUrl = 'https://raw.githubusercontent.com/kid4rm90s/Wazept-Segment-Mod-for-NP-Beta/main/WAZEPT-Segments-mod-for-NP-Beta.user.js'; 
 
     function sandboxBootstrap() {
         if (WazeWrap?.Ready) {
