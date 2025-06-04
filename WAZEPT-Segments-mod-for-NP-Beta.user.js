@@ -11,8 +11,8 @@
 // @require      https://update.greasyfork.org/scripts/509664/WME%20Utils%20-%20Bootstrap.js
 // @connect      github.com
 // @grant        unsafeWindow
-// @downloadURL 
-// @updateURL 
+// @downloadURL  https://raw.githubusercontent.com/kid4rm90s/Wazept-Segment-Mod-for-NP-Beta/main/WAZEPT-Segments-mod-for-NP-Beta.user.js
+// @updateURL    https://raw.githubusercontent.com/kid4rm90s/Wazept-Segment-Mod-for-NP-Beta/main/WAZEPT-Segments-mod-for-NP-Beta.user.js
 // ==/UserScript==
 /* Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com) */
 
