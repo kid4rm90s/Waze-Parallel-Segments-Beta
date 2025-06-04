@@ -1,31 +1,40 @@
 // ==UserScript==
 // @name         WAZEPT Segments mod for NP Beta
-// @version      2025.05.27.01
+// @version      2025.06.04.01
 // @description  Facilitates the standardisation of segments for left-hand traffic AKA right-hand-driving
 // @author       kid4rm90s
-// @include 	   /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
-// @exclude        https://www.waze.com/user/*editor/*
-// @exclude        https://www.waze.com/*/user/*editor/*
-// @grant        none
-// @namespace https://greasyfork.org/users/1087400
-/* 
-Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
-*/
+// @include      /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor\/?.*$/
+// @namespace    https://greasyfork.org/users/1087400
+// @grant        GM_xmlhttpRequest
+// @grant        GM_setClipboard
+// @require      https://greasyfork.org/scripts/24851-wazewrap/code/WazeWrap.js
+// @require      https://update.greasyfork.org/scripts/509664/WME%20Utils%20-%20Bootstrap.js
+// @connect      github.com
+// @grant        unsafeWindow
 // @downloadURL 
 // @updateURL 
 // ==/UserScript==
+/* Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com) */
+
+/* global WazeWrap */
+/* global bootstrap */
+
 /* Changelog
  Added segment distance
 */
 
-(function() {
+(function main() {
+    'use strict';
+
     var version = GM_info.script.version;
     var roads_id = [3,4,6,7,2,1,22,8,20,17,15,18,19];
     var pedonal_id = [5,10,16];
-    var array_config_country = {};
-    var array_language_original = {};
-    var array_language_country = {};
-    var language = {};
+    var language = {
+        btnSplit: "Split the segments",
+        strMeters: "m",
+        strDistance: "Distance between the two parallel segments:",
+        strSelMoreSeg: "Since you have more than 1 segment selected, to use this function make sure that you have selected segments sequentially (from one end to the other) and after executing the script, VERIFY the result obtained."
+    };
     var indexselected = "";
     var valueselected = "";
     var array_roads = {};
@@ -37,24 +46,36 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
     var last_coord_right_last = null;
     var sentido_base = null;
 
-    function bootstrap() {
-        if (typeof W === 'object' && W.userscripts?.state.isReady) {
+    const updateMessage = 'testing update message';
+    const scriptName = GM_info.script.name;
+    const scriptVersion = GM_info.script.version;
+    const downloadUrl = 'https://github.com/kid4rm90s/Wazept-Segment-Mod-for-NP-Beta/raw/refs/heads/main/WAZEPT-Segments-mod-for-NP-Beta.user.js';
+    // const forumUrl = 'https://www.waze.com/forum/viewtopic.php?f=819&t=279838'; 
+
+    function sandboxBootstrap() {
+        if (WazeWrap?.Ready) {
+            bootstrap({
+                scriptUpdateMonitor: { downloadUrl }
+            });
             init();
+            WazeWrap.Interface.ShowScriptUpdate(scriptName, scriptVersion, updateMessage, downloadUrl);
         } else {
-            document.addEventListener('wme-ready', init, { once: true });
+            setTimeout(sandboxBootstrap, 250);
         }
     }
 
+    // Start the "sandboxed" code.
+    sandboxBootstrap();
+    console.log(`${scriptName} initialized.`);
+
     async function init() {
-        var result = await getLanguages();
-
-
         setTimeout(() => {
             W.selectionManager.events.register('selectionchanged', null, selectedFeature);
             selectedFeature();
         }, 250);
 
     }
+
 
     function selectedFeature(){
         var typeData = null;
@@ -68,96 +89,6 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
                     insertButtons();
             }
         }, 100)
-    }
-
-
-    function getConfigsCountry(link) {
-        let timeout = 0;
-        return new Promise(resolve => {
-
-            fetch(link)
-                .then(res => res.text())
-                .then(text => {
-                const json = JSON.parse(text.substr(47).slice(0, -2))
-
-                $(json.table.rows).each(function(){
-                    if(verifyNull(this["c"][0]) == true)
-                    {
-                        var elem = [verifyNull(this["c"][4]), verifyNull(this["c"][5]), verifyNull(this["c"][6]), verifyNull(this["c"][7]), verifyNull(this["c"][8])];
-                        array_config_country[verifyNull(this["c"][1])] = elem;
-                        array_roads[verifyNull(this["c"][1])] = [verifyNull(this["c"][2]), verifyNull(this["c"][3])];
-                    }
-                });
-            })
-
-            var timer = setInterval(check_data, 100);
-
-            function check_data() {
-                if(Object.keys(array_config_country).length > 0 || timeout >= 20)
-                {
-                    clearInterval(timer);
-                    resolve('true');
-                }
-                timeout = timeout + 1;
-            }
-        });
-    }
-
-    function getLanguages() {
-        let timeout = 0;
-        return new Promise(resolve => {
-
-														  
-            fetch('https://docs.google.com/spreadsheets/d/1cfvkiDDK5mL1CSzAaXWC8oWyqr3us0CQhqIPegq7Q3g/gviz/tq?tqx=out:json')
-                .then(res => res.text())
-                .then(text => {
-                const json = JSON.parse(text.substr(47).slice(0, -2))
-
-                let first = false;
-                $(json.table.rows).each(function(){
-                    if(first == false)
-                    {
-                        first = true;
-                        return;
-                    }
-
-                    if(verifyNull(this["c"][0]) == "Original String")
-                    {
-                        array_language_original["btnSplit"] = verifyNull(this["c"][1]);
-                        array_language_original["strMeters"] = verifyNull(this["c"][2]);
-                        array_language_original["strDistance"] = verifyNull(this["c"][3]);
-                        array_language_original["strSelMoreSeg"] = verifyNull(this["c"][4]);
-                    }
-                    if(verifyNull(this["c"][0]).toLowerCase() == JSON.parse(localStorage.getItem("editorLocation"))["locale"].toLowerCase())
-                    {
-                        array_language_country["btnSplit"] = verifyNull(this["c"][1]);
-                        array_language_country["strMeters"] = verifyNull(this["c"][2]);
-                        array_language_country["strDistance"] = verifyNull(this["c"][3]);
-                        array_language_country["strSelMoreSeg"] = verifyNull(this["c"][4]);
-                    }
-                });
-
-            })
-
-            var timer = setInterval(check_data, 100);
-
-            function check_data() {
-                if(Object.keys(array_language_original).length > 0 || timeout >= 20)
-                {
-                    if(Object.keys(array_language_country).length == 0)
-                        language = array_language_original;
-                    $.each(array_language_country, function(code, string) {
-                        if(string == "")
-                            language[code] = array_language_original[code];
-                        else
-                            language[code] = array_language_country[code];
-                    });
-                    clearInterval(timer);
-                    resolve('true');
-                }
-                timeout = timeout + 1;
-            }
-        });
     }
 
     function myTimer() {
@@ -437,16 +368,19 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
     }
 
     function mainSplitSegments() {
-
         if (W.selectionManager.getSelectedFeatures().length > 1)
             if(!confirm(language.strSelMoreSeg))
                 return;
 
-        var AddNode= require("Waze/Action/AddNode");
-        var UpdateObject= require("Waze/Action/UpdateObject");
-        var ModifyAllConnections= require("Waze/Action/ModifyAllConnections");
+        var AddNode = require("Waze/Action/AddNode");
+        var UpdateObject = require("Waze/Action/UpdateObject");
+        var ModifyAllConnections = require("Waze/Action/ModifyAllConnections");
+        var UpdateSegmentGeometry = require("Waze/Action/UpdateSegmentGeometry");
+        var ConnectSegment = require("Waze/Action/ConnectSegment");
+        var MultiAction = require("Waze/Action/MultiAction");
 
         var distancia = $("#segmentsDistance").val();
+        var shiftMeters = parseFloat($("#segmentsShiftAmount").val() || "0"); // Get shift value
         var no = null;
         var seg_left = [];
         var seg_right = [];
@@ -460,6 +394,8 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
         sentido_base = null;
 
         let segmentosOrdenados = orderSegments();
+        let newSegments = [];
+        let multiAction = new MultiAction();
 
         $.each(segmentosOrdenados, function(i, idsegment) {
             var segment = W.model.segments.getObjectById(idsegment);
@@ -497,66 +433,117 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
 
             if(i > 0)
             {
-                if(no == "BA")
+                if(no == "BA" || no == "BB" || no == "AB" || no == "AA")
                 {
+                    // AddNode actions as before, but use multiAction
                     action_left = new AddNode(W.userscripts.toGeoJSONGeometry(W.model.segments.getObjectById(segments[0]).attributes.geometry.components[0]),[W.model.segments.getObjectById(seg_left[seg_left.length - 1]), W.model.segments.getObjectById(segments[0])]);
-                    W.model.actionManager.add(action_left);
+                    multiAction.doSubAction(W.model, action_left);
 
                     action_right = new AddNode(W.userscripts.toGeoJSONGeometry(W.model.segments.getObjectById(segments[1]).attributes.geometry.components[0]),[W.model.segments.getObjectById(seg_right[seg_right.length - 1]), W.model.segments.getObjectById(segments[1])]);
-                    W.model.actionManager.add(action_right);
-                }
-                if(no == "BB")
-                {
-                    action_left = new AddNode(W.userscripts.toGeoJSONGeometry(W.model.segments.getObjectById(segments[0]).attributes.geometry.components[0]),[W.model.segments.getObjectById(seg_left[seg_left.length - 1]), W.model.segments.getObjectById(segments[0])]);
-                    W.model.actionManager.add(action_left);
-
-                    action_right = new AddNode(W.userscripts.toGeoJSONGeometry(W.model.segments.getObjectById(segments[1]).attributes.geometry.components[0]),[W.model.segments.getObjectById(seg_right[seg_right.length - 1]), W.model.segments.getObjectById(segments[1])]);
-                    W.model.actionManager.add(action_right);
-                }
-                if(no == "AB")
-                {
-                    action_left = new AddNode(W.userscripts.toGeoJSONGeometry(W.model.segments.getObjectById(segments[0]).attributes.geometry.components[W.model.segments.getObjectById(segments[0]).attributes.geometry.components.length - 1]),[W.model.segments.getObjectById(seg_left[seg_left.length - 1]), W.model.segments.getObjectById(segments[0])]);
-                    W.model.actionManager.add(action_left);
-
-                    action_right = new AddNode(W.userscripts.toGeoJSONGeometry(W.model.segments.getObjectById(segments[1]).attributes.geometry.components[W.model.segments.getObjectById(segments[1]).attributes.geometry.components.length - 1]),[W.model.segments.getObjectById(seg_right[seg_right.length - 1]), W.model.segments.getObjectById(segments[1])]);
-                    W.model.actionManager.add(action_right);
-                }
-                if(no == "AA")
-                {
-                    action_left = new AddNode(W.userscripts.toGeoJSONGeometry(W.model.segments.getObjectById(segments[0]).attributes.geometry.components[W.model.segments.getObjectById(segments[0]).attributes.geometry.components.length - 1]),[W.model.segments.getObjectById(seg_left[seg_left.length - 1]), W.model.segments.getObjectById(segments[0])]);
-                    W.model.actionManager.add(action_left);
-
-                    action_right = new AddNode(W.userscripts.toGeoJSONGeometry(W.model.segments.getObjectById(segments[1]).attributes.geometry.components[W.model.segments.getObjectById(segments[1]).attributes.geometry.components.length - 1]),[W.model.segments.getObjectById(seg_right[seg_right.length - 1]), W.model.segments.getObjectById(segments[1])]);
-                    W.model.actionManager.add(action_right);
+                    multiAction.doSubAction(W.model, action_right);
                 }
             }
-            W.model.actionManager.add(new UpdateObject(W.model.segments.getObjectById(segments[0]),{fwdTurnsLocked:true,revTurnsLocked:true}))
-            W.model.actionManager.add(new UpdateObject(W.model.segments.getObjectById(segments[1]),{fwdTurnsLocked:true,revTurnsLocked:true}))
+            multiAction.doSubAction(W.model, new UpdateObject(W.model.segments.getObjectById(segments[0]),{fwdTurnsLocked:true,revTurnsLocked:true}));
+            multiAction.doSubAction(W.model, new UpdateObject(W.model.segments.getObjectById(segments[1]),{fwdTurnsLocked:true,revTurnsLocked:true}));
             seg_left.push(segments[0]);
             seg_right.push(segments[1]);
+            newSegments.push({ left: segments[0], right: segments[1] });
         });
 
+        // --- SHIFT NEW SEGMENTS USING WAZEWRAP ---
+        if (shiftMeters !== 0) {
+            for (let i = 0; i < newSegments.length; i++) {
+                // Shift both left and right segments
+                ['left', 'right'].forEach(side => {
+                    let segId = newSegments[i][side];
+                    let segObj = W.model.segments.getObjectById(segId);
+                    if (!segObj) return;
+                    let origGeom = segObj.attributes.geoJSONGeometry;
+                    let newGeom = structuredClone(origGeom);
+                    // Shift all points north by shiftMeters (for demo, you can adapt direction)
+                    for (let j = 0; j < newGeom.coordinates.length; j++) {
+                        let lon = newGeom.coordinates[j][0];
+                        let lat = newGeom.coordinates[j][1];
+                        let offset = WazeWrap.Geometry.CalculateLatOffsetGPS(shiftMeters, { lon, lat });
+                        newGeom.coordinates[j][1] += offset;
+                    }
+                    multiAction.doSubAction(W.model, new UpdateSegmentGeometry(segObj, origGeom, newGeom));
+                });
+            }
+        }
+
+        // --- RECONNECT ADJACENT SEGMENTS AND CHECK CONNECTION DIRECTION (AB or BA) ---
+        for (let i = 1; i < newSegments.length; i++) {
+            // Connect left segments
+            let prevLeft = W.model.segments.getObjectById(newSegments[i - 1].left);
+            let currLeft = W.model.segments.getObjectById(newSegments[i].left);
+            if (prevLeft && currLeft) {
+            let prevLeftToNode = prevLeft.getToNode();
+            let currLeftFromNode = currLeft.getFromNode();
+            let prevLeftFromNode = prevLeft.getFromNode();
+            let currLeftToNode = currLeft.getToNode();
+            // Check if AB (prev to curr) or BA (curr to prev)
+            if (prevLeftToNode && currLeftFromNode && prevLeftToNode.id === currLeftFromNode.id) {
+                // AB connection
+                multiAction.doSubAction(W.model, new ConnectSegment(prevLeftToNode, currLeft));
+                // Optionally, log or handle AB
+                // console.log(`Left segment ${prevLeft.id} (A) -> ${currLeft.id} (B): AB`);
+            } else if (prevLeftFromNode && currLeftToNode && prevLeftFromNode.id === currLeftToNode.id) {
+                // BA connection
+                multiAction.doSubAction(W.model, new ConnectSegment(prevLeftFromNode, currLeft));
+                // Optionally, log or handle BA
+                // console.log(`Left segment ${prevLeft.id} (B) -> ${currLeft.id} (A): BA`);
+            }
+            }
+            // Connect right segments
+            let prevRight = W.model.segments.getObjectById(newSegments[i - 1].right);
+            let currRight = W.model.segments.getObjectById(newSegments[i].right);
+            if (prevRight && currRight) {
+            let prevRightToNode = prevRight.getToNode();
+            let currRightFromNode = currRight.getFromNode();
+            let prevRightFromNode = prevRight.getFromNode();
+            let currRightToNode = currRight.getToNode();
+            // Check if AB (prev to curr) or BA (curr to prev)
+            if (prevRightToNode && currRightFromNode && prevRightToNode.id === currRightFromNode.id) {
+                // AB connection
+                multiAction.doSubAction(W.model, new ConnectSegment(prevRightToNode, currRight));
+                // Optionally, log or handle AB
+                // console.log(`Right segment ${prevRight.id} (A) -> ${currRight.id} (B): AB`);
+            } else if (prevRightFromNode && currRightToNode && prevRightFromNode.id === currRightToNode.id) {
+                // BA connection
+                multiAction.doSubAction(W.model, new ConnectSegment(prevRightFromNode, currRight));
+                // Optionally, log or handle BA
+                // console.log(`Right segment ${prevRight.id} (B) -> ${currRight.id} (A): BA`);
+            }
+            }
+        }
+
+        // --- MODIFY CONNECTIONS (as before) ---
         $.each(seg_left, function(i, segmentos_left) {
             if(i < seg_left.length - 1)
             {
-                let segment = W.model.segments.getObjectById(segmentos_left)
-                if(sentido_base == "AB")
-                    W.model.actionManager.add(new ModifyAllConnections(segment.getToNode(),true))
-                if(sentido_base == "BA")
-                    W.model.actionManager.add(new ModifyAllConnections(segment.getFromNode(),true))
+            let segment = W.model.segments.getObjectById(segmentos_left);
+            if (!segment) return; // Defensive
+            let node = (sentido_base == "AB") ? segment.getToNode() : segment.getFromNode();
+            if (node) {
+                multiAction.doSubAction(W.model, new ModifyAllConnections(node, true));
+            }
             }
         });
         $.each(seg_right, function(i, segmentos_right) {
             if(i > 0)
             {
-                let segment = W.model.segments.getObjectById(segmentos_right)
-                if(sentido_base == "AB")
-                    W.model.actionManager.add(new ModifyAllConnections(segment.getFromNode(),true))
-                if(sentido_base == "BA")
-                    W.model.actionManager.add(new ModifyAllConnections(segment.getToNode(),true))
+            let segment = W.model.segments.getObjectById(segmentos_right);
+            if (!segment) return; // Defensive
+            let node = (sentido_base == "AB") ? segment.getFromNode() : segment.getToNode();
+            if (node) {
+                multiAction.doSubAction(W.model, new ModifyAllConnections(node, true));
+            }
             }
         });
 
+        // --- COMMIT ALL ACTIONS AT ONCE ---
+        W.model.actionManager.add(multiAction);
     }
 
     function createSegments(sel, displacement, no) {
@@ -796,6 +783,4 @@ Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
             return "";
         return variable["v"];
     }
-
-    bootstrap();
 })();
