@@ -75,7 +75,6 @@
 
     }
 
-
     function selectedFeature(){
         var typeData = null;
         setTimeout(() => {
@@ -158,11 +157,11 @@
 
     function defineSpeed (segment, speed) {
         let UpdateObject= require("Waze/Action/UpdateObject");
-        if(segment.attributes.fwdMaxSpeed == null && segment.attributes.fwdMaxSpeed == null)
+        if(segment.attributes.fwdMaxSpeed == null && segment.attributes.revMaxSpeed == null)
             W.model.actionManager.add(new UpdateObject(segment, {'fwdMaxSpeed': speed, 'revMaxSpeed': speed}));
         else if(segment.attributes.fwdMaxSpeed == null)
             W.model.actionManager.add(new UpdateObject(segment, {'fwdMaxSpeed': speed}));
-        else if(segment.attributes.fwdMaxSpeed == null)
+        else if(segment.attributes.revMaxSpeed == null)
             W.model.actionManager.add(new UpdateObject(segment, {'revMaxSpeed': speed}));
     }
 
@@ -367,183 +366,52 @@
     }
 
     function mainSplitSegments() {
-        if (W.selectionManager.getSelectedFeatures().length > 1)
-            if(!confirm(language.strSelMoreSeg))
-                return;
+    if (W.selectionManager.getSelectedFeatures().length > 1)
+        if(!confirm(language.strSelMoreSeg))
+            return;
 
-        var AddNode = require("Waze/Action/AddNode");
-        var UpdateObject = require("Waze/Action/UpdateObject");
-        var ModifyAllConnections = require("Waze/Action/ModifyAllConnections");
-        var UpdateSegmentGeometry = require("Waze/Action/UpdateSegmentGeometry");
-        var ConnectSegment = require("Waze/Action/ConnectSegment");
-        var MultiAction = require("Waze/Action/MultiAction");
+    var distancia = $("#segmentsDistance").val();
 
-        var distancia = $("#segmentsDistance").val();
-        var shiftMeters = parseFloat($("#segmentsShiftAmount").val() || "0"); // Get shift value
-        var no = null;
-        var seg_left = [];
-        var seg_right = [];
+    let segmentosOrdenados = orderSegments();
+    let leftSegments = [];
+    let rightSegments = [];
 
-        last_node_A = null;
-        last_node_B = null;
-        last_coord_left_first = null;
-        last_coord_left_last = null;
-        last_coord_right_first = null;
-        last_coord_right_last = null;
-        sentido_base = null;
+    // 1. Split all segments and collect new segment IDs
+    $.each(segmentosOrdenados, function(i, idsegment) {
+        var segment = W.model.segments.getObjectById(idsegment);
+        var segments = createSegments(segment, distancia, null);
+        leftSegments.push(segments[0]);
+        rightSegments.push(segments[1]);
+    });
 
-        let segmentosOrdenados = orderSegments();
-        let newSegments = [];
-        let multiAction = new MultiAction();
-
-        $.each(segmentosOrdenados, function(i, idsegment) {
-            var segment = W.model.segments.getObjectById(idsegment);
-            let action_left = null;
-            let action_right = null;
-            if(last_node_A != null && last_node_B != null)
-            {
-                if(last_node_A == segment.getToNode())
-                    no = "AB";
-                if(last_node_B == segment.getFromNode())
-                    no = "BA";
-                if(last_node_A == segment.getFromNode())
-                    no = "AA";
-                if(last_node_B == segment.getToNode())
-                    no = "BB";
-                if(i == 1)
-                {
-                    if(no == "AB" || no == "AA")
-                        sentido_base = "BA";
-                    if(no == "BA" || no == "BB")
-                        sentido_base = "AB";
+    // 2. Wait for Waze to process the split actions, then connect the ends
+    setTimeout(() => {
+        let ConnectSegment = require("Waze/Action/ConnectSegment");
+        let ModifyAllConnections = require("Waze/Action/ModifyAllConnections");
+        for (let i = 0; i < leftSegments.length - 1; i++) {
+            let segA = W.model.segments.getObjectById(leftSegments[i]);
+            let segB = W.model.segments.getObjectById(leftSegments[i+1]);
+            if (segA && segB) {
+                let node = segA.getToNode();
+                if (node && segB) {
+                    W.model.actionManager.add(new ConnectSegment(node, segB));
+                    W.model.actionManager.add(new ModifyAllConnections(node, true));
                 }
             }
-            if(no == "AA" || no == "BB")
-            {
-                last_node_A = segment.getToNode();
-                last_node_B = segment.getFromNode();
-            }
-            else
-            {
-                last_node_A = segment.getFromNode();
-                last_node_B = segment.getToNode();
-            }
-            var segments = createSegments(segment, distancia, no);
-
-            if(i > 0)
-            {
-                if(no == "BA" || no == "BB" || no == "AB" || no == "AA")
-                {
-                    // AddNode actions as before, but use multiAction
-                    action_left = new AddNode(W.userscripts.toGeoJSONGeometry(W.model.segments.getObjectById(segments[0]).attributes.geometry.components[0]),[W.model.segments.getObjectById(seg_left[seg_left.length - 1]), W.model.segments.getObjectById(segments[0])]);
-                    multiAction.doSubAction(W.model, action_left);
-
-                    action_right = new AddNode(W.userscripts.toGeoJSONGeometry(W.model.segments.getObjectById(segments[1]).attributes.geometry.components[0]),[W.model.segments.getObjectById(seg_right[seg_right.length - 1]), W.model.segments.getObjectById(segments[1])]);
-                    multiAction.doSubAction(W.model, action_right);
+        }
+        for (let i = 0; i < rightSegments.length - 1; i++) {
+            let segA = W.model.segments.getObjectById(rightSegments[i]);
+            let segB = W.model.segments.getObjectById(rightSegments[i+1]);
+            if (segA && segB) {
+                let node = segA.getToNode();
+                if (node && segB) {
+                    W.model.actionManager.add(new ConnectSegment(node, segB));
+                    W.model.actionManager.add(new ModifyAllConnections(node, true));
                 }
             }
-            multiAction.doSubAction(W.model, new UpdateObject(W.model.segments.getObjectById(segments[0]),{fwdTurnsLocked:true,revTurnsLocked:true}));
-            multiAction.doSubAction(W.model, new UpdateObject(W.model.segments.getObjectById(segments[1]),{fwdTurnsLocked:true,revTurnsLocked:true}));
-            seg_left.push(segments[0]);
-            seg_right.push(segments[1]);
-            newSegments.push({ left: segments[0], right: segments[1] });
-        });
-
-        // --- SHIFT NEW SEGMENTS USING WAZEWRAP ---
-        if (shiftMeters !== 0) {
-            for (let i = 0; i < newSegments.length; i++) {
-                // Shift both left and right segments
-                ['left', 'right'].forEach(side => {
-                    let segId = newSegments[i][side];
-                    let segObj = W.model.segments.getObjectById(segId);
-                    if (!segObj) return;
-                    let origGeom = segObj.attributes.geoJSONGeometry;
-                    let newGeom = structuredClone(origGeom);
-                    // Shift all points north by shiftMeters (for demo, you can adapt direction)
-                    for (let j = 0; j < newGeom.coordinates.length; j++) {
-                        let lon = newGeom.coordinates[j][0];
-                        let lat = newGeom.coordinates[j][1];
-                        let offset = WazeWrap.Geometry.CalculateLatOffsetGPS(shiftMeters, { lon, lat });
-                        newGeom.coordinates[j][1] += offset;
-                    }
-                    multiAction.doSubAction(W.model, new UpdateSegmentGeometry(segObj, origGeom, newGeom));
-                });
-            }
         }
-
-        // --- RECONNECT ADJACENT SEGMENTS AND CHECK CONNECTION DIRECTION (AB or BA) ---
-        for (let i = 1; i < newSegments.length; i++) {
-            // Connect left segments
-            let prevLeft = W.model.segments.getObjectById(newSegments[i - 1].left);
-            let currLeft = W.model.segments.getObjectById(newSegments[i].left);
-            if (prevLeft && currLeft) {
-            let prevLeftToNode = prevLeft.getToNode();
-            let currLeftFromNode = currLeft.getFromNode();
-            let prevLeftFromNode = prevLeft.getFromNode();
-            let currLeftToNode = currLeft.getToNode();
-            // Check if AB (prev to curr) or BA (curr to prev)
-            if (prevLeftToNode && currLeftFromNode && prevLeftToNode.id === currLeftFromNode.id) {
-                // AB connection
-                multiAction.doSubAction(W.model, new ConnectSegment(prevLeftToNode, currLeft));
-                // Optionally, log or handle AB
-                // console.log(`Left segment ${prevLeft.id} (A) -> ${currLeft.id} (B): AB`);
-            } else if (prevLeftFromNode && currLeftToNode && prevLeftFromNode.id === currLeftToNode.id) {
-                // BA connection
-                multiAction.doSubAction(W.model, new ConnectSegment(prevLeftFromNode, currLeft));
-                // Optionally, log or handle BA
-                // console.log(`Left segment ${prevLeft.id} (B) -> ${currLeft.id} (A): BA`);
-            }
-            }
-            // Connect right segments
-            let prevRight = W.model.segments.getObjectById(newSegments[i - 1].right);
-            let currRight = W.model.segments.getObjectById(newSegments[i].right);
-            if (prevRight && currRight) {
-            let prevRightToNode = prevRight.getToNode();
-            let currRightFromNode = currRight.getFromNode();
-            let prevRightFromNode = prevRight.getFromNode();
-            let currRightToNode = currRight.getToNode();
-            // Check if AB (prev to curr) or BA (curr to prev)
-            if (prevRightToNode && currRightFromNode && prevRightToNode.id === currRightFromNode.id) {
-                // AB connection
-                multiAction.doSubAction(W.model, new ConnectSegment(prevRightToNode, currRight));
-                // Optionally, log or handle AB
-                // console.log(`Right segment ${prevRight.id} (A) -> ${currRight.id} (B): AB`);
-            } else if (prevRightFromNode && currRightToNode && prevRightFromNode.id === currRightToNode.id) {
-                // BA connection
-                multiAction.doSubAction(W.model, new ConnectSegment(prevRightFromNode, currRight));
-                // Optionally, log or handle BA
-                // console.log(`Right segment ${prevRight.id} (B) -> ${currRight.id} (A): BA`);
-            }
-            }
-        }
-
-        // --- MODIFY CONNECTIONS (as before) ---
-        $.each(seg_left, function(i, segmentos_left) {
-            if(i < seg_left.length - 1)
-            {
-            let segment = W.model.segments.getObjectById(segmentos_left);
-            if (!segment) return; // Defensive
-            let node = (sentido_base == "AB") ? segment.getToNode() : segment.getFromNode();
-            if (node) {
-                multiAction.doSubAction(W.model, new ModifyAllConnections(node, true));
-            }
-            }
-        });
-        $.each(seg_right, function(i, segmentos_right) {
-            if(i > 0)
-            {
-            let segment = W.model.segments.getObjectById(segmentos_right);
-            if (!segment) return; // Defensive
-            let node = (sentido_base == "AB") ? segment.getFromNode() : segment.getToNode();
-            if (node) {
-                multiAction.doSubAction(W.model, new ModifyAllConnections(node, true));
-            }
-            }
-        });
-
-        // --- COMMIT ALL ACTIONS AT ONCE ---
-        W.model.actionManager.add(multiAction);
-    }
+    }, 500); // 500ms delay, adjust as needed
+}
 
     function createSegments(sel, displacement, no) {
         var wazefeatureVectorSegment = require("Waze/Feature/Vector/Segment");
@@ -782,4 +650,5 @@
             return "";
         return variable["v"];
     }
+
 })();
