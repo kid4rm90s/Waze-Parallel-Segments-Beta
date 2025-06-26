@@ -1,767 +1,438 @@
 // ==UserScript==
-// @name         WAZEPT Segments mod for NP Beta
-// @version      2025.06.04.01
-// @description  Facilitates the standardisation of segments for left-hand traffic AKA right-hand-driving
-// @author       kid4rm90s
-// @include      /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor\/?.*$/
-// @namespace    https://greasyfork.org/users/1087400
-// @grant        GM_xmlhttpRequest
-// @grant        GM_setClipboard
-// @require      https://greasyfork.org/scripts/24851-wazewrap/code/WazeWrap.js
-// @require      https://cdn.jsdelivr.net/gh/WazeSpace/wme-sdk-plus@latest/wme-sdk-plus.js
-// @require      https://cdn.jsdelivr.net/npm/@turf/turf@7.2.0/turf.min.js
-// @connect      githubusercontent.com
-// @grant        unsafeWindow
-// @downloadURL  https://raw.githubusercontent.com/kid4rm90s/Wazept-Segment-Mod-for-NP-Beta/main/WAZEPT-Segments-mod-for-NP-Beta.user.js
-// @updateURL    https://raw.githubusercontent.com/kid4rm90s/Wazept-Segment-Mod-for-NP-Beta/main/WAZEPT-Segments-mod-for-NP-Beta.user.js
+// @name            WazePT Segment Mod for NP Beta SDK
+// @author          kid4rm90s
+// @description     This script allows creating various map features around selected road segments. Additionally, it allows creating map comments shaped as cameras and arrows.
+// @match           *://*.waze.com/*editor*
+// @exclude         *://*.waze.com/user/editor*
+// @grant           none
+// @require         https://greasyfork.org/scripts/24851-wazewrap/code/WazeWrap.js
+// @require         https://cdn.jsdelivr.net/gh/wazeSpace/wme-sdk-plus@06108853094d40f67e923ba0fe0de31b1cec4412/wme-sdk-plus.js
+// @require         https://cdn.jsdelivr.net/npm/@turf/turf@7.2.0/turf.min.js
+// @downloadURL     none
+// @updateURL       none
+// @version         2025.06.26.1
 // ==/UserScript==
-/* Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com) */
 
-/* global getWmeSdk */
-/* global initWmeSdkPlus */
-/* global WazeWrap */
-/* global turf */
-/* global $ */
-/* global jQuery */
-/* eslint curly: ["warn", "multi-or-nest"] */
+/* global W, OpenLayers, require, $, _, WazeWrap */
 
-/* Changelog
- Added segment distance
-*/
+(async function () {
+  console.log('[WazePTSegment] Userscript loaded and IIFE started');
+  console.debug('[WazePTSegment] DEBUG: Script start');
+  await SDK_INITIALIZED;
+  console.log('[WazePTSegment] SDK_INITIALIZED resolved');
+  console.debug('[WazePTSegment] DEBUG: SDK_INITIALIZED resolved');
+  const SCRIPT_NAME = GM_info.script.name;
+  const SCRIPT_VERSION = GM_info.script.version;
+  const wmeSdk = getWmeSdk({ scriptId: "wme-map-comment-geometry", scriptName: "WME Map Comment Geometry" });
+  if (!wmeSdk.State.isInitialized()) {
+    console.debug('[WazePTSegment] DEBUG: Waiting for wme-initialized');
+    await wmeSdk.Events.once({ eventName: "wme-initialized" });
+  }
+  console.debug('[WazePTSegment] DEBUG: wmeSdk initialized');
+  initWmeSdkPlus(wmeSdk);
+  WazePTSegment_bootstrap();
+  console.debug('[WazePTSegment] DEBUG: Bootstrap complete');
 
-(function main() {
-    'use strict';
+  // --- Utility Functions ---
+  function ensureMetricUnits(value) {
+    const userSettings = wmeSdk.Settings.getUserSettings();
+    if (userSettings && !userSettings.isImperial) return value;
+    return Math.round(value * 0.3048);
+  }
 
-    var roads_id = [3,4,6,7,2,1,22,8,20,17,15,18,19];
-    var pedestrian_id = [5,10,16];
-    var language = {
-        btnSplit: "Split the segments",
-        strMeters: "m",
-        strDistance: "Distance between the two parallel segments:",
-        strSelMoreSeg: "Since you have more than 1 segment selected, to use this function make sure that you have selected segments sequentially (from one end to the other) and after executing the script, VERIFY the result obtained."
-    };
-    var indexselected = "";
-    var valueselected = "";
-    var array_roads = {};
-    var last_node_A = null;
-    var last_node_B = null;
-    var last_coord_left_first = null;
-    var last_coord_left_last = null;
-    var last_coord_right_first = null;
-    var last_coord_right_last = null;
-    var baseDirection = null;
-    
-    const SCRIPT_VERSION = GM_info.script.version.toString();
-    const SCRIPT_NAME = GM_info.script.name;
-    const DOWNLOAD_URL = GM_info.scriptUpdateURL;
-    let sdk;
-    let _settings;
-    const updateMessage = 'Conversion to WME SDK. Now uses turf for calculations and geometry.';
+  function getSegmentWidth(segmentId) {
+    const segment = wmeSdk.DataModel.Segments.getById({ segmentId });
+    if (!segment) return null;
+    const segmentAddress = wmeSdk.DataModel.Segments.getAddress({ segmentId });
+    const defaultLaneWidth = (segmentAddress.country.defaultLaneWidthPerRoadType?.[segment.roadType] ?? 330) / 100;
+    const avgLanes = ((segment.fromLanesInfo?.numberOfLanes || 1) + (segment.toLanesInfo?.numberOfLanes || 1)) / 2;
+    const avgLaneWidth = ((ensureMetricUnits(segment.fromLanesInfo?.laneWidth) || defaultLaneWidth) + (ensureMetricUnits(segment.toLanesInfo?.laneWidth) || defaultLaneWidth)) / 2;
+    return avgLaneWidth * avgLanes;
+  }
 
-    async function bootstrap() {
-        const wmeSdk = getWmeSdk({ scriptId: 'wzept-segments-mod-for-np-beta', scriptName: 'WAZEPT Segments mod for NP Beta' });
-        const sdkPlus = await initWmeSdkPlus(wmeSdk, {
-            hooks: ['Editing.Transactions']
+  function getWidthOfSegments(segmentIds) {
+    const widths = segmentIds.map(getSegmentWidth).filter(Boolean);
+    return Math.round(widths.reduce((sum, w) => sum + w, 0) / widths.length);
+  }
+
+  function getSelectedSegmentsMergedLineString() {
+    const selection = wmeSdk.Editing.getSelection();
+    if (!selection || selection.objectType !== "segment") return null;
+    return mergeSegmentsGeometry(selection.ids.map(String));
+  }
+
+  function convertToLandmark(geometry, width) {
+    return turf.buffer(geometry, width / 2, { units: "meters" }).geometry;
+  }
+
+  function drawParallelOverlays(origLine, distance) {
+    if (!window.WazePTSegment_OverlayLayer) {
+      window.WazePTSegment_OverlayLayer = new OpenLayers.Layer.Vector('WazePTSegment_ParallelOverlay', { displayInLayerSwitcher: false });
+      W.map.addLayer(window.WazePTSegment_OverlayLayer);
+      W.map.setLayerIndex(window.WazePTSegment_OverlayLayer, W.map.layers.length - 1);
+    }
+    const overlayLayer = window.WazePTSegment_OverlayLayer;
+    overlayLayer.setVisibility(true);
+    overlayLayer.removeAllFeatures();
+    const leftLine = turf.lineOffset(origLine, -distance/2, { units: 'meters' });
+    const rightLine = turf.lineOffset(origLine, distance/2, { units: 'meters' });
+    function turfLineToOL(line, color) {
+      let coords = (line && line.geometry && (line.geometry.type === 'MultiLineString' || line.geometry.type === 'LineString')) ? line.geometry.coordinates : line.coordinates;
+      if (!Array.isArray(coords) || coords.length < 2) return null;
+      try {
+        const olLine = new OpenLayers.Geometry.LineString(
+          coords.map(([lon, lat]) => {
+            const [x, y] = OpenLayers.Layer.SphericalMercator.forwardMercator(lon, lat);
+            return new OpenLayers.Geometry.Point(x, y);
+          })
+        );
+        return new OpenLayers.Feature.Vector(olLine, null, { strokeColor: color, strokeWidth: 5, strokeOpacity: 0.7 });
+      } catch (e) { return null; }
+    }
+    const leftOverlay = turfLineToOL(leftLine, '#00ff00');
+    const rightOverlay = turfLineToOL(rightLine, '#ff0000');
+    overlayLayer.addFeatures([leftOverlay, rightOverlay].filter(Boolean));
+  }
+
+  // --- Main UI Bootstrap ---
+  function WazePTSegment_bootstrap() {
+    var wazeapi = W || window.W;
+    if (!wazeapi || !wazeapi.map || !WazeWrap.Interface) {
+      setTimeout(WazePTSegment_bootstrap, 1000);
+      return;
+    }
+    WazePTSegment_init();
+  }
+
+  function WazePTSegment_init() {
+    try {
+      new WazeWrap.Alerts.ScriptUpdateMonitor(
+        SCRIPT_NAME,
+        SCRIPT_VERSION,
+        "https://raw.githubusercontent.com/YULWaze/WME-MapCommentGeometry/main/WME%20MapCommentGeometry.user.js",
+        GM_xmlhttpRequest
+      ).start();
+    } catch (ex) { console.log(ex.message); }
+
+    function addWMESelectSegmentbutton() {
+      $('#split-segment').remove();
+      if (!wmeSdk.Editing.getSelection()) return;
+      if (document.getElementById("MapCommentGeo")) $("#MapCommentGeo").remove();
+      if (document.getElementById("split-segment")) $("#split-segment").remove();
+      let segmentSelection = wmeSdk.Editing.getSelection();
+      if (!segmentSelection || segmentSelection.objectType !== 'segment') return;
+      let exit = false;
+      const pedonal_id = [5,10,16];
+      segmentSelection.ids.forEach(segmentId => {
+        const seg = wmeSdk.DataModel.Segments.getById({ segmentId });
+        if (!seg) return;
+        if ((seg.fwdLaneCount && seg.fwdLaneCount !== 0) || (seg.revLaneCount && seg.revLaneCount !== 0)) exit = true;
+        if (seg.fwdDirection === false || seg.revDirection === false) exit = true;
+        if (pedonal_id.includes(seg.roadType)) exit = true;
+      });
+      if (!exit) {
+        const selSegmentsDistance = $('<wz-select id="segmentsDistance" data-type="numeric" value="5" style="width: 45%;float:left;" />');
+        [5,7,9,10,11,13,14,15,17,19,21,23,25,37].forEach(val => {
+          selSegmentsDistance.append($(`<wz-option value="${val}">${val} m</wz-option>`));
         });
-        sdk = sdkPlus || wmeSdk;
-        sdk.Events.once({ eventName: 'wme-ready' }).then(() => {
-            loadScriptUpdateMonitor();
-            init();
+        const btn1 = $('<wz-button color="secondary" size="sm" style="float:right;margin-top: 5px;">Split Segment</wz-button>');
+        btn1.click(() => {
+          const dist = parseFloat(selSegmentsDistance.val());
+          splitAndShiftSelectedSegment(dist);
         });
-    }
-
-    function waitForWME() {
-        if (!unsafeWindow.SDK_INITIALIZED) {
-            setTimeout(waitForWME, 500);
-            return;
-        }
-        unsafeWindow.SDK_INITIALIZED.then(bootstrap);
-    }
-    waitForWME();
-
-    function loadScriptUpdateMonitor() {
-        try {
-            const updateMonitor = new WazeWrap.Alerts.ScriptUpdateMonitor(SCRIPT_NAME, SCRIPT_VERSION, DOWNLOAD_URL, GM_xmlhttpRequest);
-            updateMonitor.start();
-        } catch (ex) {
-            // Report, but don't stop if ScriptUpdateMonitor fails.
-            console.error(`${SCRIPT_NAME}:`, ex);
-        }
-    }
-
-    async function init() {
-        console.log(`${SCRIPT_NAME} - Version: ${SCRIPT_VERSION}`);
-        sdk.Events.on({
-            eventName: 'wme-selection-changed',
-            eventHandler: selectedFeature
-        });
-    }
-
-    function selectedFeature() {
-        console.log("selectedFeature called");
-        setTimeout(() => {
-            if (!sdk || !sdk.Selection || typeof sdk.Selection.getSelectedFeatures !== "function") {
-                setTimeout(selectedFeature, 200);
-                return;
-            }
-            const selected = sdk.Selection.getSelectedFeatures();
-            console.log("selected:", selected);
-            if (selected.length > 0) {
-                console.log("selected[0].type:", selected[0].type);
-            }
-            const user = sdk.Users.getCurrentUser();
-            console.log("User object:", user);
-            if (selected.length > 0 && selected[0].type === "segment") {
-                myTimer();
-                console.log("User rank:", user ? user.rank : "unknown");
-                if (user && user.rank >= 3) {
-                    console.log("Calling insertButtons");
-                    insertButtons();
-                } else {
-                    console.log("User rank too low or not found");
-                }
-            } else {
-                console.log("No segment selected or wrong type");
-            }
-        }, 100);
-    }
-
-    function myTimer() {
-        if (!$("#signsroad").length) {
-            var signsroad = document.createElement("div");
-            signsroad.id = 'signsroad';
-            
-            var btnAB = document.createElement("button");
-            btnAB.innerHTML = 'A->B';
-            btnAB.id = 'btnAB';
-            btnAB.style.cssText = 'height: 20px;font-size:11px';
-
-                btnAB.onclick = function() {
-                    const selectedFeatures = sdk.Selection.getSelectedFeatures();
-                    if (selectedFeatures.length === 0 || selectedFeatures[0].type !== "segment") {
-                        return;
-                    }
-                    const segment = selectedFeatures[0];
-                    let myRoad = segment.attributes;
-
-                    if(myRoad.fwdDirection == true) //A to B
-                    {
-                        let center = sdk.Map.getCenter(); // Returns {lon, lat} in EPSG:4326
-                        var $temp = $("<input>");
-                        $("body").append($temp);
-                        // Assuming getPermalink() should be a permalink to the segment
-                        const permalink = sdk.Permalink.getLinkToSegment(myRoad.id);
-                        $temp.val(`${center.lon.toString().slice(0,8)},${center.lat.toString().slice(0,8)}|${myRoad.id}|TRUE|${permalink}|${myRoad.fromNodeID}|${myRoad.toNodeID}`).select();
-                        document.execCommand("copy");
-                        $temp.remove();
-                    }
-                }
-
-            var btnBA = document.createElement("button");
-            btnBA.innerHTML = 'B->A';
-            btnBA.id = 'btnBA';
-            btnBA.style.cssText = 'height: 20px;font-size:11px';
-
-                btnBA.onclick =  function() {
-                    const selectedFeatures = sdk.Selection.getSelectedFeatures();
-                    if (selectedFeatures.length === 0 || selectedFeatures[0].type !== "segment") {
-                        return;
-                    }
-                    const segment = selectedFeatures[0];
-                    let myRoad = segment.attributes;
-
-                    if(myRoad.revDirection == true) //B to A
-                    {
-                        let center = sdk.Map.getCenter(); // Returns {lon, lat} in EPSG:4326
-                        var $temp = $("<input>");
-                        $("body").append($temp);
-                        // Assuming getPermalink() should be a permalink to the segment
-                        const permalink = sdk.Permalink.getLinkToSegment(myRoad.id);
-                        $temp.val(`${center.lon.toString().slice(0,8)},${center.lat.toString().slice(0,8)}|${myRoad.id}|FALSE|${permalink}|${myRoad.toNodeID}|${myRoad.fromNodeID}`).select();
-                        document.execCommand("copy");
-                        $temp.remove();
-                    }
-                }
-
-            var divdirections = document.createElement("div");
-            divdirections.id = 'divdirections';
-            divdirections.appendChild(btnAB);
-            divdirections.appendChild(btnBA);
-
-            var divLandmarkScript = document.createElement("div");
-            divLandmarkScript.id = 'divLandmarkScript';
-            divLandmarkScript.style.cssText = 'float:left;';
-            divLandmarkScript.appendChild(signsroad);
-            divLandmarkScript.appendChild(divdirections);
-
-            $("div #segment-edit-general").prepend(divLandmarkScript);
-            $( "#divdirections" ).hide();
-        }
-    }
-
-    function defineSpeed (segment, speed) {
-        const attributesToUpdate = {};
-        if (segment.attributes.fwdMaxSpeed == null && segment.attributes.revMaxSpeed == null) {
-            attributesToUpdate.fwdMaxSpeed = speed;
-            attributesToUpdate.revMaxSpeed = speed;
-        } else if (segment.attributes.fwdMaxSpeed == null) {
-            attributesToUpdate.fwdMaxSpeed = speed;
-        } else if (segment.attributes.revMaxSpeed == null) {
-            attributesToUpdate.revMaxSpeed = speed;
-        }
-        if (Object.keys(attributesToUpdate).length > 0) {
-            sdk.Segments.update({ segmentId: segment.id, attributes: attributesToUpdate });
-        }
-    }
-
-    function defineRoadType (segment, type) {
-        sdk.Segments.update({ segmentId: segment.id, attributes: { roadType: type } });
-    }
-
-    function defineLockRankRoad (segment, rank) {
-        rank--; // Adjust rank as per original logic
-        let currentUserRank = sdk.Users.getCurrentUser().rank;
-        var targetLockRank = currentUserRank >= rank ? rank : currentUserRank;
-        let currentLockRank = segment.attributes.lockRank;
-        if (currentLockRank === null || currentLockRank < targetLockRank) {
-            sdk.Segments.update({ segmentId: segment.id, attributes: { lockRank: targetLockRank } });
-        }
-    }
-
-    async function convertSegmentType(segment) {
-        const originalSegmentId = segment.id;
-        const originalGeometry = turf.clone(segment.geometry);
-        const originalFromNodeId = segment.fromNodeId;
-        const originalToNodeId = segment.toNodeId;
-
-        // Prepare new attributes, copying only relevant editable fields
-        const newAttributes = {
-            fwdDirection: segment.attributes.fwdDirection,
-            revDirection: segment.attributes.revDirection,
-            fwdMaxSpeed: segment.attributes.fwdMaxSpeed,
-            revMaxSpeed: segment.attributes.revMaxSpeed,
-            level: segment.attributes.level,
-            fwdToll: segment.attributes.fwdToll,
-            revToll: segment.attributes.revToll,
-            restrictions: Array.isArray(segment.attributes.restrictions) ? [...segment.attributes.restrictions] : [],
-            allowNoTurns: segment.attributes.allowNoTurns
-        };
-
-        // Set the new roadType and lockRank
-        newAttributes.roadType = parseInt(array_config_country[indexselected][2]);
-        newAttributes.lockRank = null;
-/*
-        // Set node connections for the new segment
-        newAttributes.fromNodeID = originalFromNodeId;
-        newAttributes.toNodeID = originalToNodeId;
-        let newSegmentModel;
-        try {
-            await sdk.Editing.doActions(async () => {
-                // 1. Delete the old segment
-                await sdk.Segments.remove({ segmentId: originalSegmentId });
-
-                // 2. Add the new segment
-                const addedSegmentInfo = await sdk.Segments.add({
-                    geometry: originalGeometry,
-                    attributes: newAttributes
-                });
-
-                // 3. Fetch the new segment model
-                newSegmentModel = sdk.Segments.getById({ segmentId: addedSegmentInfo.id });
-
-                if (newSegmentModel && roads_id.includes(newSegmentModel.attributes.roadType)) {
-                    // 4. Lock turns for the new segment
-                    await sdk.Segments.update({
-                        segmentId: newSegmentModel.id,
-                        attributes: { fwdTurnsLocked: true, revTurnsLocked: true }
-                    });
-
-                    // 5. Refresh node connections
-                    if (originalFromNodeId) {
-                        await sdk.Editing.updateAllConnections({ nodeId: originalFromNodeId });
-                    }
-                    if (originalToNodeId) {
-                        await sdk.Editing.updateAllConnections({ nodeId: originalToNodeId });
-                    }
-                }
-            }, `Convert segment type for ID: ${originalSegmentId}`);
-        } catch (error) {
-            console.error("Error during convertSegmentType:", error);
-            return null;
-        }
-        return newSegmentModel;
-    }
-*/
-        // Set the new roadType and lockRank
-        newAttributes.roadType = parseInt(array_config_country[indexselected][2]);
-        newAttributes.lockRank = null; // Explicitly setting to null
-
-        // Set node connections for the new segment
-        newAttributes.fromNodeID = originalFromNodeId;
-        newAttributes.toNodeID = originalToNodeId;
-
-        let newSegmentModel;
-
-        try {
-            await sdk.Editing.doActions(async () => {
-                // 1. Delete the old segment
-                await sdk.Segments.remove({ segmentId: originalSegmentId });
-
-                // 2. Add the new segment
-                const addedSegmentInfo = await sdk.Segments.add({
-                    geometry: originalGeometry,
-                    attributes: newAttributes
-                });
-                
-                // Fetch the full model of the newly added segment
-                newSegmentModel = sdk.Segments.getById({ segmentId: addedSegmentInfo.id });
-
-                if (newSegmentModel && roads_id.includes(newSegmentModel.attributes.roadType)) {
-                    // 3. Update turns locked status for the new segment
-                    await sdk.Segments.update({
-                        segmentId: newSegmentModel.id,
-                        attributes: { fwdTurnsLocked: true, revTurnsLocked: true }
-                    });
-
-                    // 4. Refresh connections/turns at the nodes
-                    // This replaces the legacy ModifyAllConnections
-                    if (originalFromNodeId) {
-                        await sdk.Editing.updateAllConnections({ nodeId: originalFromNodeId });
-                    }
-                    if (originalToNodeId) {
-                        await sdk.Editing.updateAllConnections({ nodeId: originalToNodeId });
-                    }
-                }
-            }, `Convert segment type for ID: ${originalSegmentId}`);
-        } catch (error) {
-            console.error("Error during convertSegmentType:", error);
-            return null; // Or throw error
-        }
-
-        return newSegmentModel; // Return the model of the newly created segment
-    }
-
-    // Split Segments
-
-    function insertButtons() {
-        console.log("insertButtons called");
-        const currentUser = sdk.Users.getCurrentUser();
-        if (!currentUser || !currentUser.isLoggedIn()) {
-            console.log("User not logged in or sdk.Users.getCurrentUser() failed");
-            return;
-        }
-
-        const selectedFeatures = sdk.Selection.getSelectedFeatures();
-        if (selectedFeatures.length === 0) {
-            console.log("No features selected");
-            return;
-        }
-        if (selectedFeatures[0].type !== "segment") {
-            console.log("First selected feature is not a segment:", selectedFeatures[0].type);
-            return;
-        }
-
-        let exit = false;
-        selectedFeatures.forEach(segment => {
-            if (segment.type === "segment" && segment.attributes) {
-                if (segment.attributes.fwdLaneCount != 0 || segment.attributes.revLaneCount != 0) {
-                    console.log("Segment has lanes, skipping");
-                    exit = true;
-                }
-                if (segment.attributes.fwdDirection == false || segment.attributes.revDirection == false) {
-                    console.log("Segment direction is false, skipping");
-                    exit = true;
-                }
-                if (pedestrian_id.includes(segment.attributes.roadType)) {
-                    console.log("Segment is pedestrian, skipping");
-                    exit = true;
-                }
-            } else {
-                console.log("Segment missing attributes or not a segment");
-                exit = true; 
-            }
-            if (exit) return;
-        });
-        if (exit) {
-            console.log("Segment not eligible for button");
-            return;
-        }
-        try {
-            if (document.getElementById('split-segment') !== null) {
-                console.log("Button already exists");
-                return;
-            }
-        } catch (e) {
-            console.error("Error checking for existing 'split-segment' element:", e);
-        }
-
-        var btn1 = $('<wz-button color="secondary" size="sm" style="float:right;margin-top: 5px;">' + language.btnSplit + '</wz-button>');
-        btn1.click(mainSplitSegments);
-        var strMeters = language.strMeters;
-        var selSegmentsDistance = $('<wz-select id="segmentsDistance" data-type="numeric" value="5" style="width: 45%;float:left;" />');
-        selSegmentsDistance.append($('<wz-option value="5">5 ' + strMeters + '</wz-option>'));
-        selSegmentsDistance.append($('<wz-option value="7">7 ' + strMeters + '</wz-option>'));
-        selSegmentsDistance.append($('<wz-option value="9">9 ' + strMeters + '</wz-option>'));
-        selSegmentsDistance.append($('<wz-option value="10">10 ' + strMeters + '</wz-option>'));
-        selSegmentsDistance.append($('<wz-option value="11">11 ' + strMeters + '</wz-option>'));
-        selSegmentsDistance.append($('<wz-option value="13">13 ' + strMeters + '</wz-option>'));
-        selSegmentsDistance.append($('<wz-option value="14">14 ' + strMeters + '</wz-option>'));
-        selSegmentsDistance.append($('<wz-option value="15">15 ' + strMeters + '</wz-option>'));
-        selSegmentsDistance.append($('<wz-option value="17">17 ' + strMeters + '</wz-option>'));
-        selSegmentsDistance.append($('<wz-option value="19">19 ' + strMeters + '</wz-option>'));
-        selSegmentsDistance.append($('<wz-option value="21">21 ' + strMeters + '</wz-option>'));
-        selSegmentsDistance.append($('<wz-option value="23">23 ' + strMeters + '</wz-option>'));
-        selSegmentsDistance.append($('<wz-option value="25">25 ' + strMeters + '</wz-option>'));
-        selSegmentsDistance.append($('<wz-option value="37">37 ' + strMeters + '</wz-option>'));
-        var cnt = $('<div id="split-segment" class="form-group" style="display: flex;" />');
-        var divGroup1 = $('<div/>');
-        divGroup1.append($('<wz-label>' + language.strDistance + '</wz-label>'));
+        const cnt = $('<div id="split-segment" class="form-group" style="display: flex;" />');
+        const divGroup1 = $('<div/>' );
+        divGroup1.append($('<wz-label>Distance between the two parallel segments:</wz-label>'));
         divGroup1.append(selSegmentsDistance);
         divGroup1.append(btn1);
         cnt.append(divGroup1);
-
-        // Robust container targeting with logs
-        let targetContainer = null;
-        if ($("#segment-edit-general").length > 0) {
-            targetContainer = $("#segment-edit-general");
-            console.log("Target: #segment-edit-general");
-        } else if ($(".multi-segment-edit").length > 0) {
-            targetContainer = $(".multi-segment-edit");
-            console.log("Target: .multi-segment-edit");
-        } else if ($(".segment-edit").length > 0) {
-            targetContainer = $(".segment-edit");
-            console.log("Target: .segment-edit");
-        } else if ($(".edit-panel").length > 0) {
-            targetContainer = $(".edit-panel");
-            console.log("Target: .edit-panel");
-        }
-
-        if (targetContainer && targetContainer.length > 0) {
-            targetContainer.append(cnt);
-            console.log("Button inserted");
-        } else {
-            console.error("WAZEPT Segments mod: Could not find a place to insert the split segment UI.");
-            return;
-        }
-
-        const storedMeters = localStorage.getItem("metersSplitSegment");
-        if (storedMeters !== null) {
-            $("#segmentsDistance").val(storedMeters);
-        }
-        $('#segmentsDistance').on('change', function(){
-            localStorage.setItem("metersSplitSegment", $(this).val());
+        const $panel = $('#segment-edit-general');
+        const $attrForm = $panel.find('.attributes-form');
+        if ($attrForm.length) cnt.insertAfter($attrForm);
+        else if ($panel.length) $panel.append(cnt);
+        else { setTimeout(addWMESelectSegmentbutton, 250); return; }
+        $("#segmentsDistance").val(localStorage.getItem("metersSplitSegment") || "5");
+        $('#segmentsDistance').change(function(){
+          localStorage.setItem("metersSplitSegment", $("#segmentsDistance").val());
         });
+      }
     }
 
-    function orderSegments() {
-        const selectedFeatures = sdk.Selection.getSelectedFeatures().filter(f => f.type === "segment");
-        const orderedSegments = [];
-        const nodes = [];
-        let nextNode = null;
-        selectedFeatures.forEach(segment => {
-            const fromNodeID = segment.fromNodeId ?? segment.attributes.fromNodeID;
-            const toNodeID = segment.toNodeId ?? segment.attributes.toNodeID;
-            if (nodes.length > 0) {
-                let fromExists = false;
-                let toExists = false;
-                nodes.forEach(no1 => {
-                    if (no1[0] === fromNodeID) {
-                        no1[1] = 2;
-                        fromExists = true;
-                    }
-                    if (no1[0] === toNodeID) {
-                        no1[1] = 2;
-                        toExists = true;
-                    }
-                });
-                if (!fromExists) nodes.push([fromNodeID, 1]);
-                if (!toExists) nodes.push([toNodeID, 1]);
-            } else {
-                nodes.push([fromNodeID, 1]);
-                nodes.push([toNodeID, 1]);
-            }
-        });
-        let segments = selectedFeatures.length;
-        for (const no of nodes) {
-            if (no[1] === 1) {
-                nextNode = no[0];
-                break;
-            }
-        }
-        while (segments > 0) {
-            for (const segment of selectedFeatures) {
-                const fromNodeID = segment.fromNodeId ?? segment.attributes.fromNodeID;
-                const toNodeID = segment.toNodeId ?? segment.attributes.toNodeID;
-                const segId = segment.id ?? segment.attributes.id;
-                if (fromNodeID === nextNode) {
-                    orderedSegments.push(segId);
-                    nextNode = toNodeID;
-                    segments--;
-                    break;
-                } else if (toNodeID === nextNode) {
-                    orderedSegments.push(segId);
-                    nextNode = fromNodeID;
-                    segments--;
-                    break;
-                }
-            }
-        }
-        return orderedSegments;
+    wmeSdk.Events.on({
+      eventName: "wme-selection-changed",
+      eventHandler: () => {
+        const sel = wmeSdk.Editing.getSelection();
+        if (sel && sel.objectType === 'segment') addWMESelectSegmentbutton();
+      }
+    });
+    if (wmeSdk.Editing.getSelection()?.objectType === "segment") addWMESelectSegmentbutton();
+  }
+
+  // --- Segment Split/Shift Logic ---
+  // Helper: Offset a linestring by a given distance (meters) using vector math
+  function offsetLineString(coords, offsetMeters) {
+    if (coords.length < 2) return coords;
+    const offsetCoords = [];
+    for (let i = 0; i < coords.length; i++) {
+      // For each point, get the direction of the segment before and after
+      let dx = 0, dy = 0, count = 0;
+      if (i > 0) {
+        dx += coords[i][0] - coords[i-1][0];
+        dy += coords[i][1] - coords[i-1][1];
+        count++;
+      }
+      if (i < coords.length - 1) {
+        dx += coords[i+1][0] - coords[i][0];
+        dy += coords[i+1][1] - coords[i][1];
+        count++;
+      }
+      if (count > 0) {
+        dx /= count;
+        dy /= count;
+      }
+      // Perpendicular vector (in degrees, so convert to meters using turf)
+      const pt = turf.point(coords[i]);
+      const bearing = Math.atan2(dy, dx) * 180 / Math.PI;
+      // Perpendicular left: bearing - 90, right: bearing + 90
+      const offsetPt = turf.destination(pt, offsetMeters, bearing - 90, { units: 'meters' });
+      offsetCoords.push(offsetPt.geometry.coordinates);
     }
+    return offsetCoords;
+  }
 
-    async function mainSplitSegments() {
-        last_coord_left_first = null;
-        last_coord_left_last = null;
-        last_coord_right_first = null;
-        last_coord_right_last = null;
-        if (sdk.Selection.getSelectedFeatures().length > 1)
-            if (!confirm(language.strSelMoreSeg))
-                return;
-        const distance = $("#segmentsDistance").val();
-        let orderedSegments = orderSegments();
-        let leftSegments = [];
-        let rightSegments = [];
-
-        // 1. Split all segments and collect new segment IDs
-        for (const idsegment of orderedSegments) {
-            const segment = sdk.Segments.getById({ segmentId: idsegment });
-            if (!segment) {
-                console.error(`Segment with ID ${idsegment} not found.`);
-                continue;
-            }
-            try {
-                const segments = await createSegments(segment, distance, null);
-                if (!segments || segments.length !== 2) {
-                    console.error(`Failed to create parallel segments for segment ID ${idsegment}`);
-                    continue;
-                }
-                leftSegments.push(segments[0]);
-                rightSegments.push(segments[1]);
-            } catch (e) {
-                console.error(`Error splitting segment ID ${idsegment}:`, e);
-            }
-        }
-
-        // 2. Wait for Waze to process the split actions, then connect the ends
-        setTimeout(async () => {
-            try {
-                for (let i = 0; i < leftSegments.length - 1; i++) {
-                    const segA = sdk.Segments.getById({ segmentId: leftSegments[i] });
-                    const segB = sdk.Segments.getById({ segmentId: leftSegments[i + 1] });
-                    if (segA && segB) {
-                        const nodeId = segA.toNodeId;
-                        if (nodeId && segB) {
-                            await sdk.Editing.connectSegment({ nodeId, segmentId: segB.id });
-                            await sdk.Editing.updateAllConnections({ nodeId });
-                        }
-                    }
-                }
-                for (let i = 0; i < rightSegments.length - 1; i++) {
-                    const segA = sdk.Segments.getById({ segmentId: rightSegments[i] });
-                    const segB = sdk.Segments.getById({ segmentId: rightSegments[i + 1] });
-                    if (segA && segB) {
-                        const nodeId = segA.toNodeId;
-                        if (nodeId && segB) {
-                            await sdk.Editing.connectSegment({ nodeId, segmentId: segB.id });
-                            await sdk.Editing.updateAllConnections({ nodeId });
-                        }
-                    }
-                }
-            } catch (e) {
-                console.error("Error connecting split segments:", e);
-            }
-        }, 500);
+  // Helper: Offset a linestring by a given distance (meters) using Web Mercator math (like OpenLayers)
+  function offsetLineStringMercator(coords, offsetMeters) {
+    if (coords.length < 2) return coords;
+    // Convert to Web Mercator
+    const merc = coords.map(([lon, lat]) => OpenLayers.Layer.SphericalMercator.forwardMercator(lon, lat));
+    console.debug('offsetLineStringMercator: input coords', coords);
+    console.debug('offsetLineStringMercator: mercator coords', merc);
+    const offsetMerc = [];
+    for (let i = 0; i < merc.length; i++) {
+      let dx = 0, dy = 0, count = 0;
+      if (i > 0) {
+        dx += merc[i][0] - merc[i-1][0];
+        dy += merc[i][1] - merc[i-1][1];
+        count++;
+      }
+      if (i < merc.length - 1) {
+        dx += merc[i+1][0] - merc[i][0];
+        dy += merc[i+1][1] - merc[i][1];
+        count++;
+      }
+      if (count > 0) {
+        dx /= count;
+        dy /= count;
+      }
+      // Perpendicular vector (meters)
+      const len = Math.sqrt(dx*dx + dy*dy);
+      let ox = 0, oy = 0;
+      if (len > 0) {
+        ox = -dy / len * offsetMeters;
+        oy = dx / len * offsetMeters;
+      }
+      offsetMerc.push([merc[i][0] + ox, merc[i][1] + oy]);
+      console.debug(`offsetLineStringMercator: pt[${i}] dx=${dx}, dy=${dy}, len=${len}, ox=${ox}, oy=${oy}, orig=(${merc[i][0]},${merc[i][1]}), shifted=(${merc[i][0]+ox},${merc[i][1]+oy})`);
     }
+    // Convert back to lon/lat
+    const result = offsetMerc.map(([x, y]) => OpenLayers.Layer.SphericalMercator.inverseMercator(x, y));
+    console.debug('offsetLineStringMercator: result coords', result);
+    return result;
+  }
 
-    // Create two parallel segments using WME SDK+ and turf.js
-    async function createSegments(sel, displacement, no) {
-        const originalLine = turf.lineString(turf.getCoords(sel.geometry));
-        const offset = Number(displacement) / 2;
-        const leftLine = turf.lineOffset(originalLine, -offset, { units: "meters" });
-        const rightLine = turf.lineOffset(originalLine, offset, { units: "meters" });
-        const splitResult = await sdk.Segments.split({ segmentId: sel.id });
-        if (!splitResult || splitResult.length !== 2) {
-            console.error("Failed to split segment:", sel.id);
-            return [];
-        }
-        let leftSegment = sdk.Segments.getById({ segmentId: splitResult[0] });
-        let rightSegment = sdk.Segments.getById({ segmentId: splitResult[1] });
-        let leftCoords = turf.getCoords(leftLine);
-        let rightCoords = turf.getCoords(rightLine);
-        if (no === "AA" || no === "BB") {
-            leftCoords = leftCoords.reverse();
-            rightCoords = rightCoords.reverse();
-        }
-        if (
-            last_coord_left_first && last_coord_left_last &&
-            last_coord_right_first && last_coord_right_last
-        ) {
-            if (no === "AB") {
-                leftCoords[leftCoords.length - 1] = [last_coord_left_first.x, last_coord_left_first.y];
-                rightCoords[rightCoords.length - 1] = [last_coord_right_first.x, last_coord_right_first.y];
-            }
-            if (no === "BA") {
-                leftCoords[0] = [last_coord_left_last.x, last_coord_left_last.y];
-                rightCoords[0] = [last_coord_right_last.x, last_coord_right_last.y];
-            }
-            if (no === "AA") {
-                leftCoords[leftCoords.length - 1] = [last_coord_left_first.x, last_coord_left_first.y];
-                rightCoords[rightCoords.length - 1] = [last_coord_right_first.x, last_coord_right_first.y];
-            }
-            if (no === "BB") {
-                leftCoords[0] = [last_coord_left_last.x, last_coord_left_last.y];
-                rightCoords[0] = [last_coord_right_last.x, last_coord_right_last.y];
-            }
-        }
-        sdk.Segments.update({
-            segmentId: leftSegment.id,
-            geometry: { type: "LineString", coordinates: leftCoords }
-        });
-        sdk.Segments.update({
-            segmentId: rightSegment.id,
-            geometry: { type: "LineString", coordinates: rightCoords }
-        });
-        last_coord_left_first = { x: leftCoords[0][0], y: leftCoords[0][1] };
-        last_coord_left_last = { x: leftCoords[leftCoords.length - 1][0], y: leftCoords[leftCoords.length - 1][1] };
-        last_coord_right_first = { x: rightCoords[0][0], y: rightCoords[0][1] };
-        last_coord_right_last = { x: rightCoords[rightCoords.length - 1][0], y: rightCoords[rightCoords.length - 1][1] };
-
-        // 9. Update directions if needed
-        if (no === "AA" || no === "BB") {
-            sdk.Segments.update({
-                segmentId: rightSegment.id,
-                attributes: {
-                    revDirection: false,
-                    fwdMaxSpeed: rightSegment.attributes.revMaxSpeed,
-                    revMaxSpeed: rightSegment.attributes.fwdMaxSpeed
-                }
-            });
-            sdk.Segments.update({
-                segmentId: leftSegment.id,
-                attributes: {
-                    fwdDirection: false,
-                    fwdMaxSpeed: leftSegment.attributes.revMaxSpeed,
-                    revMaxSpeed: leftSegment.attributes.fwdMaxSpeed
-                }
-            });
-        } else {
-            sdk.Segments.update({
-                segmentId: rightSegment.id,
-                attributes: { revDirection: false }
-            });
-            sdk.Segments.update({
-                segmentId: leftSegment.id,
-                attributes: { fwdDirection: false }
-            });
-        }
-        return [leftSegment.id, rightSegment.id];
-    }
-
-    function getEquation(segment) {
-        let coords;
-        if (segment && segment.type === "LineString" && Array.isArray(segment.coordinates)) {
-            coords = segment.coordinates;
-        } else if (Array.isArray(segment) && segment.length === 2) {
-            coords = segment;
-        } else {
-            throw new Error("getEquation: Invalid segment format");
-        }
-        const [x1, y1] = coords[0];
-        const [x2, y2] = coords[1];
-        if (x2 === x1) {
-            return { x: x1 };
-        }
-        const slope = (y2 - y1) / (x2 - x1);
-        const offset = y1 - (slope * x1);
+  // Helper: Offset a linestring by a given distance (meters) using OpenLayers-style vector math in Web Mercator, mimicking legacy script
+  function offsetLineStringOpenLayersStyle(coords, offsetMeters) {
+    if (coords.length < 2) return { left: coords, right: coords };
+    // Convert to Web Mercator
+    const merc = coords.map(([lon, lat]) => OpenLayers.Layer.SphericalMercator.forwardMercator(lon, lat));
+    let leftPoints = [], rightPoints = [];
+    let prevLeftEq = null, prevRightEq = null;
+    let leftPb, rightPb;
+    for (let i = 0; i < merc.length - 1; i++) {
+      const pa = merc[i], pb = merc[i + 1];
+      // Vector from pa to pb
+      const dx = pb[0] - pa[0], dy = pb[1] - pa[1];
+      const len = Math.sqrt(dx * dx + dy * dy);
+      if (len === 0) continue;
+      // Scale factor (legacy script: (len + offset/2) / len)
+      const scale = (len + Math.abs(offsetMeters)) / len;
+      // Resize pb from pa
+      function resize(base, other, scale) {
+        return [base[0] + (other[0] - base[0]) * scale, base[1] + (other[1] - base[1]) * scale];
+      }
+      // Rotate a point around a base by angle (deg)
+      function rotate(pt, base, angleDeg) {
+        const angle = angleDeg * Math.PI / 180;
+        const x = pt[0] - base[0];
+        const y = pt[1] - base[1];
+        const xRot = x * Math.cos(angle) - y * Math.sin(angle);
+        const yRot = x * Math.sin(angle) + y * Math.cos(angle);
+        return [base[0] + xRot, base[1] + yRot];
+      }
+      // Left side: rotate +90 at pa, -90 at pb
+      let leftPa = resize(pa, pb, scale);
+      leftPa = rotate(leftPa, pa, 90);
+      leftPb = resize(pb, pa, scale);
+      leftPb = rotate(leftPb, pb, -90);
+      // Right side: rotate -90 at pa, +90 at pb
+      let rightPa = resize(pa, pb, scale);
+      rightPa = rotate(rightPa, pa, -90);
+      rightPb = resize(pb, pa, scale);
+      rightPb = rotate(rightPb, pb, 90);
+      // Line equations for intersection
+      function getEq(a, b) {
+        if (b[0] === a[0]) return { x: a[0] };
+        const slope = (b[1] - a[1]) / (b[0] - a[0]);
+        const offset = a[1] - slope * a[0];
         return { slope, offset };
-    }
-
-    function intersectX(eqa, eqb, defaultPoint) {
-        if (eqa.points && eqb.points) {
-            try {
-                const line1 = turf.lineString(eqa.points);
-                const line2 = turf.lineString(eqb.points);
-                const intersect = turf.lineIntersect(line1, line2);
-                if (intersect.features.length > 0) {
-                    return intersect.features[0].geometry.coordinates;
-                }
-            } catch (e) {}
+      }
+      const leftEq = getEq(leftPa, leftPb);
+      const rightEq = getEq(rightPa, rightPb);
+      // Intersections for smooth join
+      function intersect(eq1, eq2) {
+        if (eq1.slope !== undefined && eq2.slope !== undefined) {
+          if (eq1.slope === eq2.slope) return null;
+          const x = (eq2.offset - eq1.offset) / (eq1.slope - eq2.slope);
+          const y = eq1.slope * x + eq1.offset;
+          return [x, y];
+        } else if (eq1.x !== undefined) {
+          return [eq1.x, eq2.slope * eq1.x + eq2.offset];
+        } else if (eq2.x !== undefined) {
+          return [eq2.x, eq1.slope * eq2.x + eq1.offset];
         }
-        if (typeof eqa.slope === "number" && typeof eqb.slope === "number") {
-            if (eqa.slope === eqb.slope) return null;
-            const ix = (eqb.offset - eqa.offset) / (eqa.slope - eqb.slope);
-            const iy = eqa.slope * ix + eqa.offset;
-            return [ix, iy];
-        }
-        if (typeof eqa.x === "number" && typeof eqb.slope === "number") {
-            const ix = eqa.x;
-            const iy = eqb.slope * ix + eqb.offset;
-            return [ix, iy];
-        }
-        if (typeof eqb.x === "number" && typeof eqa.slope === "number") {
-            const ix = eqb.x;
-            const iy = eqa.slope * ix + eqa.offset;
-            return [ix, iy];
-        }
-        return defaultPoint || null;
-    }
-
-
-    // Split a segment using WME SDK+ and turf.js, returning the new segment IDs
-    async function SplitSegment(road) {
-        // Ensure the road is editable
-        if (!road || !road.arePropertiesEditable || !road.arePropertiesEditable()) {
-            return undefined;
-        }
-
-        // Clone the geometry using turf
-        const coords = turf.getCoords(road.geometry);
-        if (!Array.isArray(coords) || coords.length < 2) {
-            return undefined;
-        }
-
-        // If only two points, insert a midpoint
-        let splitIndex = Math.floor(coords.length / 2);
-        let splitPoint;
-        if (coords.length === 2) {
-            // Calculate midpoint
-            splitPoint = [
-                (coords[0][0] + coords[1][0]) / 2,
-                (coords[0][1] + coords[1][1]) / 2
-            ];
-            coords.splice(1, 0, splitPoint);
-            // Update geometry before split
-            await sdk.Segments.update({
-                segmentId: road.id,
-                geometry: { type: "LineString", coordinates: coords }
-            });
-            splitIndex = 1;
+        return null;
+      }
+      if (i === 0) {
+        leftPoints = [leftPa];
+        rightPoints = [rightPa];
+      } else {
+        const li = intersect(leftEq, prevLeftEq);
+        const ri = intersect(rightEq, prevRightEq);
+        if (li && ri) {
+          leftPoints.push(li);
+          rightPoints.push(ri);
         } else {
-            splitPoint = coords[splitIndex];
+          leftPoints.push(leftPa);
+          rightPoints.push(rightPa);
         }
-
-        // Use SDK+ to split at the midpoint
-        let splitResult;
-        try {
-            splitResult = await sdk.Segments.split({
-                segmentId: road.id,
-                splitIndex: splitIndex
-            });
-        } catch (e) {
-            console.error("SplitSegment error:", e);
-            return undefined;
-        }
-        if (!splitResult || !Array.isArray(splitResult) || splitResult.length !== 2) {
-            return undefined;
-        }
-        return splitResult;
+      }
+      prevLeftEq = leftEq;
+      prevRightEq = rightEq;
+      if (i === merc.length - 2) {
+        leftPoints.push(leftPb);
+        rightPoints.push(rightPb);
+      }
     }
-
-    
-    function verifyNull(variable)
-    {
-        if (variable === null || typeof variable !== "object" || !("v" in variable)) return "";
-        return variable["v"];
+    // Convert back to lon/lat and remove consecutive duplicate points
+    function dedupe(arr) {
+      return arr.filter((pt, i, a) => i === 0 || pt[0] !== a[i-1][0] || pt[1] !== a[i-1][1]);
     }
+    const leftLonLat = dedupe(leftPoints.map(([x, y]) => OpenLayers.Layer.SphericalMercator.inverseMercator(x, y)));
+    const rightLonLat = dedupe(rightPoints.map(([x, y]) => OpenLayers.Layer.SphericalMercator.inverseMercator(x, y)));
+    if (leftLonLat.length < 2 || rightLonLat.length < 2) {
+      console.error('openLayersLegacyOffset: Not enough unique points', { leftLonLat, rightLonLat });
+    }
+    return { left: leftLonLat, right: rightLonLat };
+  }
 
+  async function splitAndShiftSelectedSegment(distance, forceSegmentId) {
+    console.debug('splitAndShiftSelectedSegment: START', {distance, forceSegmentId});
+    const selection = wmeSdk.Editing.getSelection();
+    let segmentId = forceSegmentId !== undefined ? forceSegmentId : (selection && selection.objectType === 'segment' && selection.ids.length === 1 ? Number(selection.ids[0]) : null);
+    if (!segmentId) { alert('Please select a single segment.'); console.debug('splitAndShiftSelectedSegment: No segmentId'); return; }
+    const segori = wmeSdk.DataModel.Segments.getById({ segmentId });
+    if (!segori) { alert('Segment not found.'); console.debug('splitAndShiftSelectedSegment: Segment not found', segmentId); return; }
+    const origLine = segori.geometry;
+    if (!origLine || origLine.type !== 'LineString') { alert('Invalid segment geometry.'); console.debug('splitAndShiftSelectedSegment: Invalid geometry', origLine); return; }
+    drawParallelOverlays(origLine, distance);
+    console.debug('splitAndShiftSelectedSegment: origLine', origLine);
+    const totalLen = turf.length(origLine, { units: 'meters' });
+    const midLen = totalLen / 2;
+    const splitPoint = turf.along(origLine, midLen, { units: 'meters' });
+    const splitCoord = splitPoint.geometry.coordinates;
+    let insertIdx = -1, accumLen = 0;
+    for (let i = 0; i < origLine.coordinates.length - 1; i++) {
+      const segLen = turf.distance(turf.point(origLine.coordinates[i]), turf.point(origLine.coordinates[i+1]), { units: 'meters' });
+      if (accumLen + segLen >= midLen) { insertIdx = i; break; }
+      accumLen += segLen;
+    }
+    if (insertIdx === -1) { alert('Could not find valid split location.'); console.debug('splitAndShiftSelectedSegment: Could not find valid split location'); return; }
+    function coordsEqual(a, b) { return Array.isArray(a) && Array.isArray(b) && a.length === 2 && b.length === 2 && Math.abs(a[0] - b[0]) < 1e-9 && Math.abs(a[1] - b[1]) < 1e-9; }
+    let needInsert = !(coordsEqual(origLine.coordinates[insertIdx], splitCoord) || coordsEqual(origLine.coordinates[insertIdx+1], splitCoord));
+    let newCoords = needInsert ? origLine.coordinates.slice(0, insertIdx + 1).concat([splitCoord]).concat(origLine.coordinates.slice(insertIdx + 1)) : origLine.coordinates.slice();
+    const newLine = { ...origLine, coordinates: newCoords };
+    console.debug('splitAndShiftSelectedSegment: newLine', newLine);
+    await wmeSdk.Editing.doActions(async () => {
+      await wmeSdk.DataModel.Segments.updateSegment({ segmentId: segmentId, geometry: newLine });
+      const splitPointCoord = { type: "Point", coordinates: splitCoord };
+      const splitResult = await wmeSdk.DataModel.Segments.splitSegment({ segmentId: segmentId, geometryIndex: insertIdx + 1, splitPoint: splitPointCoord });
+      let segA = null, segB = null;
+      let newIds = splitResult && splitResult.newSegmentIds && splitResult.newSegmentIds.length === 2 ? splitResult.newSegmentIds : null;
+      if (newIds) {
+        segA = wmeSdk.DataModel.Segments.getById({ segmentId: Number(newIds[0]) });
+        segB = wmeSdk.DataModel.Segments.getById({ segmentId: Number(newIds[1]) });
+      }
+      // If IDs not found, try to find the two new segments by geometry
+      if (!segA || !segB) {
+        // Wait a bit for WME to update the model
+        await new Promise(r => setTimeout(r, 300));
+        // Find all segments at the split point
+        const allSegs = wmeSdk.DataModel.Segments.getAll();
+        const isAtSplit = seg => seg.geometry && seg.geometry.type === 'LineString' && seg.geometry.coordinates.some(c => coordsEqual(c, splitCoord));
+        const candidates = allSegs.filter(isAtSplit).filter(s => s.id !== segmentId);
+        if (candidates.length >= 2) {
+          segA = candidates[0];
+          segB = candidates[1];
+        }
+      }
+      if (!segA || !segB) {
+        alert('Failed to split segment.');
+        console.debug('splitAndShiftSelectedSegment: Could not find both split segments', splitResult);
+        return;
+      }
+      // Split the original geometry into two halves
+      // Offset the first half to the left, second half to the right, using OpenLayers-style vector math
+      let coordsA = newLine.coordinates.slice(0, insertIdx + 2); // start to split
+      let coordsB = newLine.coordinates.slice(insertIdx + 1);    // split to end
+      // Remove consecutive duplicate points
+      function dedupeCoords(arr) {
+        return arr.filter((pt, i, a) => i === 0 || !(pt[0] === a[i-1][0] && pt[1] === a[i-1][1]));
+      }
+      coordsA = dedupeCoords(coordsA);
+      coordsB = dedupeCoords(coordsB);
+      console.debug('splitAndShiftSelectedSegment: coordsA (deduped)', coordsA);
+      console.debug('splitAndShiftSelectedSegment: coordsB (deduped)', coordsB);
+      const offsetA = openLayersLegacyOffset(coordsA, -distance/2).left;
+      const offsetB = openLayersLegacyOffset(coordsB, distance/2).right;
+      console.debug('splitAndShiftSelectedSegment: offsetA', offsetA);
+      console.debug('splitAndShiftSelectedSegment: offsetB', offsetB);
+      function isValidCoords(arr) {
+        return Array.isArray(arr) && arr.length >= 2 && arr.every(pt => Array.isArray(pt) && pt.length === 2 && pt.every(Number.isFinite));
+      }
+      if (!isValidCoords(offsetA) || !isValidCoords(offsetB)) {
+        console.error('Invalid offset geometry:', { offsetA, offsetB, coordsA, coordsB });
+        alert('Error: Offset geometry is invalid. See console for details.');
+        return;
+      }
+      await wmeSdk.DataModel.Segments.updateSegment({ segmentId: segA.id, geometry: { type: 'LineString', coordinates: offsetA } });
+      await wmeSdk.DataModel.Segments.updateSegment({ segmentId: segB.id, geometry: { type: 'LineString', coordinates: offsetB } });
+      console.debug('splitAndShiftSelectedSegment: END');
+      alert('Segment split and shifted!');
+    }, 'Split and shift segment (OpenLayers-style offset)');
+  }
+
+  // --- Multi-segment Split/Shift (optional, can be removed if not needed) ---
+  async function splitAndShiftMultipleSegments(distance) {
+    const selection = wmeSdk.Editing.getSelection();
+    if (!selection || selection.objectType !== 'segment' || selection.ids.length < 1) {
+      alert('Please select at least one segment.');
+      return;
+    }
+    if (selection.ids.length > 1 && !confirm('You have selected multiple segments. Continue?')) return;
+    const segmentIds = selection.ids.map(Number);
+    for (const segmentId of segmentIds) {
+      await splitAndShiftSelectedSegment(distance, segmentId);
+    }
+    alert('All selected segments split and shifted!');
+  }
 })();
