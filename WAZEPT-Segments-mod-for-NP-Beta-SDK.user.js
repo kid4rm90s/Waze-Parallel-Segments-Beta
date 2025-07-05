@@ -8,8 +8,8 @@
 // @require         https://greasyfork.org/scripts/24851-wazewrap/code/WazeWrap.js
 // @require         https://cdn.jsdelivr.net/gh/wazeSpace/wme-sdk-plus@06108853094d40f67e923ba0fe0de31b1cec4412/wme-sdk-plus.js
 // @require         https://cdn.jsdelivr.net/npm/@turf/turf@7.2.0/turf.min.js
-// @downloadURL     none
-// @updateURL       none
+// @downloadURL     https://raw.githubusercontent.com/kid4rm90s/Wazept-Segment-Mod-for-NP-Beta/main/WAZEPT-Segments-mod-for-NP-Beta-SDK.user.js
+// @updateURL       https://raw.githubusercontent.com/kid4rm90s/Wazept-Segment-Mod-for-NP-Beta/main/WAZEPT-Segments-mod-for-NP-Beta-SDK.user.js
 // @version         2025.07.05.5
 // ==/UserScript==
 
@@ -122,7 +122,7 @@
       new WazeWrap.Alerts.ScriptUpdateMonitor(
         SCRIPT_NAME,
         SCRIPT_VERSION,
-        "https://raw.githubusercontent.com/YULWaze/WME-MapCommentGeometry/main/WME%20MapCommentGeometry.user.js",
+        "https://raw.githubusercontent.com/kid4rm90s/Wazept-Segment-Mod-for-NP-Beta/main/WAZEPT-Segments-mod-for-NP-Beta-SDK.user.js",
         GM_xmlhttpRequest
       ).start();
     } catch (ex) { console.log(ex.message); }
