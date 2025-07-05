@@ -5,7 +5,7 @@
 // @description     This script helps to split segments and align in parallel given distance by assigning oneway road.
 // @include         /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor\/?.*$/*
 // @grant           GM_xmlhttpRequest
-// @connect-src     raw.githubusercontent.com
+// @connect     raw.githubusercontent.com
 // @grant           unsafeWindow
 // @require         https://greasyfork.org/scripts/24851-wazewrap/code/WazeWrap.js
 // @require         https://cdn.jsdelivr.net/gh/wazeSpace/wme-sdk-plus@06108853094d40f67e923ba0fe0de31b1cec4412/wme-sdk-plus.js
@@ -71,7 +71,7 @@
 
   function loadScriptUpdateMonitor() {
     try {
-      const updateMonitor = new WazeWrap.Alerts.ScriptUpdateMonitor(SCRIPT_NAME, SCRIPT_VERSION, DOWNLOAD_URL, GM_xmlhttpRequest);
+      const updateMonitor = new WazeWrap.Alerts.ScriptUpdateMonitor(SCRIPT_NAME, SCRIPT_VERSION, 'https://raw.githubusercontent.com/kid4rm90s/Waze-Parallel-Segments-Beta/main/Waze-Parallel-Segments-Beta.user.js', GM_xmlhttpRequest);
       updateMonitor.start();
     } catch (ex) {
       // Report, but don't stop if ScriptUpdateMonitor fails.
@@ -214,12 +214,6 @@
    * Configures update monitoring and creates the segment selection interface
    */
   function wazeparallelsegments_init() {
-    try {
-      new WazeWrap.Alerts.ScriptUpdateMonitor(SCRIPT_NAME, SCRIPT_VERSION, 'https://raw.githubusercontent.com/kid4rm90s/Waze-Parallel-Segments-Beta/main/Waze-Parallel-Segments-Beta.user.js', GM_xmlhttpRequest).start();
-    } catch (ex) {
-      console.log(ex.message);
-    }
-
     /**
      * Creates and manages the UI button for segment splitting operations
      * Dynamically shows/hides based on segment selection and validates segment eligibility
