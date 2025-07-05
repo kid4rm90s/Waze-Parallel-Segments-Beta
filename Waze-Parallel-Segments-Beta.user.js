@@ -10,8 +10,8 @@
 // @require         https://greasyfork.org/scripts/24851-wazewrap/code/WazeWrap.js
 // @require         https://cdn.jsdelivr.net/gh/wazeSpace/wme-sdk-plus@06108853094d40f67e923ba0fe0de31b1cec4412/wme-sdk-plus.js
 // @require         https://cdn.jsdelivr.net/npm/@turf/turf@7.2.0/turf.min.js
-// @downloadURL     https://raw.githubusercontent.com/kid4rm90s/Wazept-Segment-Mod-for-NP-Beta/main/WAZEPT-Segments-mod-for-NP-Beta-SDK.user.js
-// @updateURL       https://raw.githubusercontent.com/kid4rm90s/Wazept-Segment-Mod-for-NP-Beta/main/WAZEPT-Segments-mod-for-NP-Beta-SDK.user.js
+// @downloadURL     https://raw.githubusercontent.com/kid4rm90s/Waze-Parallel-Segments-Beta/main/Waze-Parallel-Segments-Beta.user.js
+// @updateURL       https://raw.githubusercontent.com/kid4rm90s/Waze-Parallel-Segments-Beta/main/Waze-Parallel-Segments-Beta.user.js
 
 // ==/UserScript==
 
@@ -37,8 +37,8 @@
  * - Turf.js: Geospatial analysis and geometry operations
  */
 (function () {
-  console.log('[wazeparallelsegment] Userscript loaded and IIFE started');
-  console.debug('[wazeparallelsegment] DEBUG: Script start');
+  console.log('[wazeparallelsegments] Userscript loaded and IIFE started');
+  console.debug('[wazeparallelsegments] DEBUG: Script start');
 
   const updateMessage = ' Test update';
   const SCRIPT_NAME = GM_info.script.name;
@@ -49,14 +49,14 @@
 
   // Ensure WME is fully initialized before continuing
   async function bootstrap() {
-    wmeSdk = getWmeSdk({ scriptId: 'wazeparallelsegment', scriptName: 'Waze Parallel Segment' });
+    wmeSdk = getWmeSdk({ scriptId: 'wazeparallelsegments', scriptName: 'Waze Parallel Segments' });
     const sdkPlus = await initWmeSdkPlus(wmeSdk, {
       hooks: ['Editing.Transactions'],
     });
     sdk = sdkPlus || wmeSdk;
     sdk.Events.once({ eventName: 'wme-ready' }).then(() => {
       loadScriptUpdateMonitor();
-      wazeparallelsegment_init();
+      wazeparallelsegments_init();
     });
   }
 
@@ -143,12 +143,12 @@
    * @param {number} distance - The distance between parallel lines in meters
    */
   function drawParallelOverlays(origLine, distance) {
-    if (!window.wazeparallelsegment_OverlayLayer) {
-      window.wazeparallelsegment_OverlayLayer = new OpenLayers.Layer.Vector('wazeparallelsegment_ParallelOverlay', { displayInLayerSwitcher: false });
-      W.map.addLayer(window.wazeparallelsegment_OverlayLayer);
-      W.map.setLayerIndex(window.wazeparallelsegment_OverlayLayer, W.map.layers.length - 1);
+    if (!window.wazeparallelsegments_OverlayLayer) {
+      window.wazeparallelsegments_OverlayLayer = new OpenLayers.Layer.Vector('wazeparallelsegments_ParallelOverlay', { displayInLayerSwitcher: false });
+      W.map.addLayer(window.wazeparallelsegments_OverlayLayer);
+      W.map.setLayerIndex(window.wazeparallelsegments_OverlayLayer, W.map.layers.length - 1);
     }
-    const overlayLayer = window.wazeparallelsegment_OverlayLayer;
+    const overlayLayer = window.wazeparallelsegments_OverlayLayer;
     overlayLayer.setVisibility(true);
     overlayLayer.removeAllFeatures();
 
@@ -200,22 +200,22 @@
    * Recursively retries every second until dependencies are loaded
    */
 
-  /*  function wazeparallelsegment_bootstrap() {
+  /*  function wazeparallelsegments_bootstrap() {
     var wazeapi = W || window.W;
     if (!wazeapi || !wazeapi.map || !WazeWrap.Interface) {
-      setTimeout(wazeparallelsegment_bootstrap, 1000);
+      setTimeout(wazeparallelsegments_bootstrap, 1000);
       return;
     }
-    wazeparallelsegment_init();
+    wazeparallelsegments_init();
   }
   */
   /**
    * Main initialization function that sets up the script's UI and event handlers
    * Configures update monitoring and creates the segment selection interface
    */
-  function wazeparallelsegment_init() {
+  function wazeparallelsegments_init() {
     try {
-      new WazeWrap.Alerts.ScriptUpdateMonitor(SCRIPT_NAME, SCRIPT_VERSION, 'https://raw.githubusercontent.com/kid4rm90s/Wazept-Segment-Mod-for-NP-Beta/main/WAZEPT-Segments-mod-for-NP-Beta-SDK.user.js', GM_xmlhttpRequest).start();
+      new WazeWrap.Alerts.ScriptUpdateMonitor(SCRIPT_NAME, SCRIPT_VERSION, 'https://raw.githubusercontent.com/kid4rm90s/Waze-Parallel-Segments-Beta/main/Waze-Parallel-Segments-Beta.user.js', GM_xmlhttpRequest).start();
     } catch (ex) {
       console.log(ex.message);
     }
@@ -339,10 +339,10 @@
       'WME Parallel Segments',
       GM_info.script.version,
       updateMessage,
-      'https://raw.githubusercontent.com/kid4rm90s/Wazept-Segment-Mod-for-NP-Beta/main/WAZEPT-Segments-mod-for-NP-Beta-SDK.user.js',
-      'https://github.com/kid4rm90s/Wazept-Segment-Mod-for-NP-Beta',
+      'https://raw.githubusercontent.com/kid4rm90s/Waze-Parallel-Segments-Beta/main/Waze-Parallel-Segments-Beta.user.js',
+      'https://github.com/kid4rm90s/Waze-Parallel-Segments-Beta',
     );
-  } // <-- Close wazeparallelsegment_init
+  } // <-- Close wazeparallelsegments_init
 
   // --- Segment Split/Shift Logic ---
 
@@ -398,7 +398,7 @@
           segmentId: curr.segmentId,
           geometry: { type: 'LineString', coordinates: currGeom },
         });
-        console.log(`[wazeparallelsegment] Geometry-aligned segment ${curr.segmentId} end to ${next.segmentId} start.`);
+        console.log(`[wazeparallelsegments] Geometry-aligned segment ${curr.segmentId} end to ${next.segmentId} start.`);
       } catch (e) {
         console.warn('connectShiftedSegments: Failed to update geometry for alignment', curr.segmentId, e);
       }
@@ -432,7 +432,7 @@
     // After all splits, connect left and right chains
     await connectShiftedSegments(leftChain);
     await connectShiftedSegments(rightChain);
-    console.log('[wazeparallelsegment] Multi-segment split/shift complete. Left and right chains processed.');
+    console.log('[wazeparallelsegments] Multi-segment split/shift complete. Left and right chains processed.');
   }
 
   // --- Geometry Offset Helper Functions ---
@@ -1334,7 +1334,7 @@
       });
 
       // Set both segments to one-way A_TO_B direction
-      console.log('[wazeparallelsegment] Step: Setting both left and right segments to one-way (A_TO_B)');
+      console.log('[wazeparallelsegments] Step: Setting both left and right segments to one-way (A_TO_B)');
       await wmeSdk.DataModel.Segments.updateSegment({
         segmentId: leftParallelSegment.id,
         direction: 'A_TO_B',
@@ -1343,7 +1343,7 @@
         segmentId: rightParallelSegment.id,
         direction: 'A_TO_B',
       });
-      console.log(`[wazeparallelsegment] Step: Segments ${leftParallelSegment.id} and ${rightParallelSegment.id} set to one-way (A_TO_B)`);
+      console.log(`[wazeparallelsegments] Step: Segments ${leftParallelSegment.id} and ${rightParallelSegment.id} set to one-way (A_TO_B)`);
 
       // Wait for segments to be updated and nodes to be properly assigned
       await new Promise((r) => setTimeout(r, 500)); // Increased delay for segment stabilization
@@ -1363,7 +1363,7 @@
 
       // Get the updated segment objects to check their node orientations
       await new Promise((r) => setTimeout(r, 200)); // Wait for segments to be fully created
-      console.log('[wazeparallelsegment] Step: Fetching updated segment objects for node orientation check');
+      console.log('[wazeparallelsegments] Step: Fetching updated segment objects for node orientation check');
       const leftSegmentObj = wmeSdk.DataModel.Segments.getById({ segmentId: leftParallelSegment.id });
       const rightSegmentObj = wmeSdk.DataModel.Segments.getById({ segmentId: rightParallelSegment.id });
 
@@ -1428,11 +1428,11 @@
       let leftReversalSuccess = true; // Already completed in pre-rotation step
       let rightReversalSuccess = true;
 
-      console.log('[wazeparallelsegment] Step: Node placement - left segment pre-rotated, checking if right segment needs reversal');
+      console.log('[wazeparallelsegments] Step: Node placement - left segment pre-rotated, checking if right segment needs reversal');
       // Skip left segment rotation since it was already done in pre-rotation step
       if (rightNeedsReversal) {
         if (rightSegmentObj) {
-          console.log('[wazeparallelsegment] Step: Reversing right parallel segment for A→B node order');
+          console.log('[wazeparallelsegments] Step: Reversing right parallel segment for A→B node order');
           rightReversalSuccess = await reverseSegmentNodes(rightParallelSegment.id);
           console.debug('splitAndShiftSelectedSegment: Right parallel segment reversed for A→B node order:', rightReversalSuccess);
           // Validate the result
@@ -1453,10 +1453,10 @@
           rightReversalSuccess = false;
         }
       } else {
-        console.log('[wazeparallelsegment] Step: Right segment does not need reversal, orientation is correct');
+        console.log('[wazeparallelsegments] Step: Right segment does not need reversal, orientation is correct');
       }
 
-      console.log('[wazeparallelsegment] Step: Successfully applied parallel geometries and node placement');
+      console.log('[wazeparallelsegments] Step: Successfully applied parallel geometries and node placement');
 
       // Provide detailed feedback about the result
       const placementStatus = [];
@@ -1473,7 +1473,7 @@
       }
 
       console.log(
-        `[wazeparallelsegment] Step: Segment split and shifted successfully with preserved shape!\n\nResult (Node Placement with Pre-Rotation):\n- Left parallel (ID: ${leftParallelSegment.id}): A→B node order\n- Right parallel (ID: ${
+        `[wazeparallelsegments] Step: Segment split and shifted successfully with preserved shape!\n\nResult (Node Placement with Pre-Rotation):\n- Left parallel (ID: ${leftParallelSegment.id}): A→B node order\n- Right parallel (ID: ${
           rightParallelSegment.id
         }): A→B node order\n\nDetails:\n${placementStatus.join('\n')}\n\nThis creates proper node placement where the left segment is pre-rotated and the right segment is adjusted as needed to achieve the desired node orientation.`
       );
