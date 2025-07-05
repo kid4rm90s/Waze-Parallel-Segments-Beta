@@ -1,40 +1,31 @@
 // ==UserScript==
-// @name         WAZEPT Segments mod for NP Beta
-// @version      2025.06.04.01
+// @name         WAZEPT Segments Mod for NP Beta
+// @version      2024.10.22.01
 // @description  Facilitates the standardisation of segments for left-hand traffic AKA right-hand-driving
 // @author       kid4rm90s
-// @include      /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor\/?.*$/
-// @namespace    https://greasyfork.org/users/1087400
-// @grant        GM_xmlhttpRequest
-// @grant        GM_setClipboard
-// @require      https://greasyfork.org/scripts/24851-wazewrap/code/WazeWrap.js
-// @require      https://update.greasyfork.org/scripts/509664/WME%20Utils%20-%20Bootstrap.js
-// @connect      githubusercontent.com
-// @grant        unsafeWindow
-// @downloadURL  https://raw.githubusercontent.com/kid4rm90s/Wazept-Segment-Mod-for-NP-Beta/main/WAZEPT-Segments-mod-for-NP-Beta.user.js
-// @updateURL    https://raw.githubusercontent.com/kid4rm90s/Wazept-Segment-Mod-for-NP-Beta/main/WAZEPT-Segments-mod-for-NP-Beta.user.js
+// @include 	   /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
+// @exclude        https://www.waze.com/user/*editor/*
+// @exclude        https://www.waze.com/*/user/*editor/*
+// @grant        none
+// @namespace https://greasyfork.org/users/1087400
+/* 
+Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com)
+*/
+// @downloadURL https://update.greasyfork.org/scripts/491466/WAZEPT%20Segments%20Mod%20for%20NP.user.js
+// @updateURL https://update.greasyfork.org/scripts/491466/WAZEPT%20Segments%20Mod%20for%20NP.meta.js
 // ==/UserScript==
-/* Original Author Thanks : J0N4S13 (jonathanserrario@gmail.com) */
-
-/* global WazeWrap */
-/* global bootstrap */
-
 /* Changelog
  Added segment distance
 */
 
-(function main() {
-    'use strict';
-
+(function() {
     var version = GM_info.script.version;
     var roads_id = [3,4,6,7,2,1,22,8,20,17,15,18,19];
     var pedonal_id = [5,10,16];
-    var language = {
-        btnSplit: "Split the segments",
-        strMeters: "m",
-        strDistance: "Distance between the two parallel segments:",
-        strSelMoreSeg: "Since you have more than 1 segment selected, to use this function make sure that you have selected segments sequentially (from one end to the other) and after executing the script, VERIFY the result obtained."
-    };
+    var array_config_country = {};
+    var array_language_original = {};
+    var array_language_country = {};
+    var language = {};
     var indexselected = "";
     var valueselected = "";
     var array_roads = {};
@@ -46,28 +37,18 @@
     var last_coord_right_last = null;
     var sentido_base = null;
 
-    const updateMessage = 'testing update message';
-    const scriptName = GM_info.script.name;
-    const scriptVersion = GM_info.script.version;
-    const downloadUrl = 'https://raw.githubusercontent.com/kid4rm90s/Wazept-Segment-Mod-for-NP-Beta/main/WAZEPT-Segments-mod-for-NP-Beta.user.js'; 
-
-    function sandboxBootstrap() {
-        if (WazeWrap?.Ready) {
-            bootstrap({
-                scriptUpdateMonitor: { downloadUrl }
-            });
+    function bootstrap() {
+        if (typeof W === 'object' && W.userscripts?.state.isReady) {
             init();
-            WazeWrap.Interface.ShowScriptUpdate(scriptName, scriptVersion, updateMessage, downloadUrl);
         } else {
-            setTimeout(sandboxBootstrap, 250);
+            document.addEventListener('wme-ready', init, { once: true });
         }
     }
 
-    // Start the "sandboxed" code.
-    sandboxBootstrap();
-    console.log(`${scriptName} initialized.`);
-
     async function init() {
+        var result = await getLanguages();
+
+
         setTimeout(() => {
             W.selectionManager.events.register('selectionchanged', null, selectedFeature);
             selectedFeature();
@@ -87,6 +68,96 @@
                     insertButtons();
             }
         }, 100)
+    }
+
+
+    function getConfigsCountry(link) {
+        let timeout = 0;
+        return new Promise(resolve => {
+
+            fetch(link)
+                .then(res => res.text())
+                .then(text => {
+                const json = JSON.parse(text.substr(47).slice(0, -2))
+
+                $(json.table.rows).each(function(){
+                    if(verifyNull(this["c"][0]) == true)
+                    {
+                        var elem = [verifyNull(this["c"][4]), verifyNull(this["c"][5]), verifyNull(this["c"][6]), verifyNull(this["c"][7]), verifyNull(this["c"][8])];
+                        array_config_country[verifyNull(this["c"][1])] = elem;
+                        array_roads[verifyNull(this["c"][1])] = [verifyNull(this["c"][2]), verifyNull(this["c"][3])];
+                    }
+                });
+            })
+
+            var timer = setInterval(check_data, 100);
+
+            function check_data() {
+                if(Object.keys(array_config_country).length > 0 || timeout >= 20)
+                {
+                    clearInterval(timer);
+                    resolve('true');
+                }
+                timeout = timeout + 1;
+            }
+        });
+    }
+
+    function getLanguages() {
+        let timeout = 0;
+        return new Promise(resolve => {
+
+														  
+            fetch('https://docs.google.com/spreadsheets/d/1cfvkiDDK5mL1CSzAaXWC8oWyqr3us0CQhqIPegq7Q3g/gviz/tq?tqx=out:json')
+                .then(res => res.text())
+                .then(text => {
+                const json = JSON.parse(text.substr(47).slice(0, -2))
+
+                let first = false;
+                $(json.table.rows).each(function(){
+                    if(first == false)
+                    {
+                        first = true;
+                        return;
+                    }
+
+                    if(verifyNull(this["c"][0]) == "Original String")
+                    {
+                        array_language_original["btnSplit"] = verifyNull(this["c"][1]);
+                        array_language_original["strMeters"] = verifyNull(this["c"][2]);
+                        array_language_original["strDistance"] = verifyNull(this["c"][3]);
+                        array_language_original["strSelMoreSeg"] = verifyNull(this["c"][4]);
+                    }
+                    if(verifyNull(this["c"][0]).toLowerCase() == JSON.parse(localStorage.getItem("editorLocation"))["locale"].toLowerCase())
+                    {
+                        array_language_country["btnSplit"] = verifyNull(this["c"][1]);
+                        array_language_country["strMeters"] = verifyNull(this["c"][2]);
+                        array_language_country["strDistance"] = verifyNull(this["c"][3]);
+                        array_language_country["strSelMoreSeg"] = verifyNull(this["c"][4]);
+                    }
+                });
+
+            })
+
+            var timer = setInterval(check_data, 100);
+
+            function check_data() {
+                if(Object.keys(array_language_original).length > 0 || timeout >= 20)
+                {
+                    if(Object.keys(array_language_country).length == 0)
+                        language = array_language_original;
+                    $.each(array_language_country, function(code, string) {
+                        if(string == "")
+                            language[code] = array_language_original[code];
+                        else
+                            language[code] = array_language_country[code];
+                    });
+                    clearInterval(timer);
+                    resolve('true');
+                }
+                timeout = timeout + 1;
+            }
+        });
     }
 
     function myTimer() {
@@ -157,11 +228,11 @@
 
     function defineSpeed (segment, speed) {
         let UpdateObject= require("Waze/Action/UpdateObject");
-        if(segment.attributes.fwdMaxSpeed == null && segment.attributes.revMaxSpeed == null)
+        if(segment.attributes.fwdMaxSpeed == null && segment.attributes.fwdMaxSpeed == null)
             W.model.actionManager.add(new UpdateObject(segment, {'fwdMaxSpeed': speed, 'revMaxSpeed': speed}));
         else if(segment.attributes.fwdMaxSpeed == null)
             W.model.actionManager.add(new UpdateObject(segment, {'fwdMaxSpeed': speed}));
-        else if(segment.attributes.revMaxSpeed == null)
+        else if(segment.attributes.fwdMaxSpeed == null)
             W.model.actionManager.add(new UpdateObject(segment, {'revMaxSpeed': speed}));
     }
 
@@ -366,52 +437,126 @@
     }
 
     function mainSplitSegments() {
-    if (W.selectionManager.getSelectedFeatures().length > 1)
-        if(!confirm(language.strSelMoreSeg))
-            return;
 
-    var distancia = $("#segmentsDistance").val();
+        if (W.selectionManager.getSelectedFeatures().length > 1)
+            if(!confirm(language.strSelMoreSeg))
+                return;
 
-    let segmentosOrdenados = orderSegments();
-    let leftSegments = [];
-    let rightSegments = [];
+        var AddNode= require("Waze/Action/AddNode");
+        var UpdateObject= require("Waze/Action/UpdateObject");
+        var ModifyAllConnections= require("Waze/Action/ModifyAllConnections");
+        var distancia = $("#segmentsDistance").val();
+        var no = null;
+        var seg_left = [];
+        var seg_right = [];
 
-    // 1. Split all segments and collect new segment IDs
-    $.each(segmentosOrdenados, function(i, idsegment) {
-        var segment = W.model.segments.getObjectById(idsegment);
-        var segments = createSegments(segment, distancia, null);
-        leftSegments.push(segments[0]);
-        rightSegments.push(segments[1]);
-    });
+        last_node_A = null;
+        last_node_B = null;
+        last_coord_left_first = null;
+        last_coord_left_last = null;
+        last_coord_right_first = null;
+        last_coord_right_last = null;
+        sentido_base = null;
 
-    // 2. Wait for Waze to process the split actions, then connect the ends
-    setTimeout(() => {
-        let ConnectSegment = require("Waze/Action/ConnectSegment");
-        let ModifyAllConnections = require("Waze/Action/ModifyAllConnections");
-        for (let i = 0; i < leftSegments.length - 1; i++) {
-            let segA = W.model.segments.getObjectById(leftSegments[i]);
-            let segB = W.model.segments.getObjectById(leftSegments[i+1]);
-            if (segA && segB) {
-                let node = segA.getToNode();
-                if (node && segB) {
-                    W.model.actionManager.add(new ConnectSegment(node, segB));
-                    W.model.actionManager.add(new ModifyAllConnections(node, true));
+        let segmentosOrdenados = orderSegments();
+
+        $.each(segmentosOrdenados, function(i, idsegment) {
+            var segment = W.model.segments.getObjectById(idsegment);
+            let action_left = null;
+            let action_right = null;
+            if(last_node_A != null && last_node_B != null)
+            {
+                if(last_node_A == segment.getToNode())
+                    no = "AB";
+                if(last_node_B == segment.getFromNode())
+                    no = "BA";
+                if(last_node_A == segment.getFromNode())
+                    no = "AA";
+                if(last_node_B == segment.getToNode())
+                    no = "BB";
+                if(i == 1)
+                {
+                    if(no == "AB" || no == "AA")
+                        sentido_base = "BA";
+                    if(no == "BA" || no == "BB")
+                        sentido_base = "AB";
                 }
             }
-        }
-        for (let i = 0; i < rightSegments.length - 1; i++) {
-            let segA = W.model.segments.getObjectById(rightSegments[i]);
-            let segB = W.model.segments.getObjectById(rightSegments[i+1]);
-            if (segA && segB) {
-                let node = segA.getToNode();
-                if (node && segB) {
-                    W.model.actionManager.add(new ConnectSegment(node, segB));
-                    W.model.actionManager.add(new ModifyAllConnections(node, true));
+            if(no == "AA" || no == "BB")
+            {
+                last_node_A = segment.getToNode();
+                last_node_B = segment.getFromNode();
+            }
+            else
+            {
+                last_node_A = segment.getFromNode();
+                last_node_B = segment.getToNode();
+            }
+            var segments = createSegments(segment, distancia, no);
+
+            if(i > 0)
+            {
+                if(no == "BA")
+                {
+                    action_left = new AddNode(W.userscripts.toGeoJSONGeometry(W.model.segments.getObjectById(segments[0]).attributes.geometry.components[0]),[W.model.segments.getObjectById(seg_left[seg_left.length - 1]), W.model.segments.getObjectById(segments[0])]);
+                    W.model.actionManager.add(action_left);
+
+                    action_right = new AddNode(W.userscripts.toGeoJSONGeometry(W.model.segments.getObjectById(segments[1]).attributes.geometry.components[0]),[W.model.segments.getObjectById(seg_right[seg_right.length - 1]), W.model.segments.getObjectById(segments[1])]);
+                    W.model.actionManager.add(action_right);
+                }
+                if(no == "BB")
+                {
+                    action_left = new AddNode(W.userscripts.toGeoJSONGeometry(W.model.segments.getObjectById(segments[0]).attributes.geometry.components[0]),[W.model.segments.getObjectById(seg_left[seg_left.length - 1]), W.model.segments.getObjectById(segments[0])]);
+                    W.model.actionManager.add(action_left);
+
+                    action_right = new AddNode(W.userscripts.toGeoJSONGeometry(W.model.segments.getObjectById(segments[1]).attributes.geometry.components[0]),[W.model.segments.getObjectById(seg_right[seg_right.length - 1]), W.model.segments.getObjectById(segments[1])]);
+                    W.model.actionManager.add(action_right);
+                }
+                if(no == "AB")
+                {
+                    action_left = new AddNode(W.userscripts.toGeoJSONGeometry(W.model.segments.getObjectById(segments[0]).attributes.geometry.components[W.model.segments.getObjectById(segments[0]).attributes.geometry.components.length - 1]),[W.model.segments.getObjectById(seg_left[seg_left.length - 1]), W.model.segments.getObjectById(segments[0])]);
+                    W.model.actionManager.add(action_left);
+
+                    action_right = new AddNode(W.userscripts.toGeoJSONGeometry(W.model.segments.getObjectById(segments[1]).attributes.geometry.components[W.model.segments.getObjectById(segments[1]).attributes.geometry.components.length - 1]),[W.model.segments.getObjectById(seg_right[seg_right.length - 1]), W.model.segments.getObjectById(segments[1])]);
+                    W.model.actionManager.add(action_right);
+                }
+                if(no == "AA")
+                {
+                    action_left = new AddNode(W.userscripts.toGeoJSONGeometry(W.model.segments.getObjectById(segments[0]).attributes.geometry.components[W.model.segments.getObjectById(segments[0]).attributes.geometry.components.length - 1]),[W.model.segments.getObjectById(seg_left[seg_left.length - 1]), W.model.segments.getObjectById(segments[0])]);
+                    W.model.actionManager.add(action_left);
+
+                    action_right = new AddNode(W.userscripts.toGeoJSONGeometry(W.model.segments.getObjectById(segments[1]).attributes.geometry.components[W.model.segments.getObjectById(segments[1]).attributes.geometry.components.length - 1]),[W.model.segments.getObjectById(seg_right[seg_right.length - 1]), W.model.segments.getObjectById(segments[1])]);
+                    W.model.actionManager.add(action_right);
                 }
             }
-        }
-    }, 500); // 500ms delay, adjust as needed
-}
+            W.model.actionManager.add(new UpdateObject(W.model.segments.getObjectById(segments[0]),{fwdTurnsLocked:true,revTurnsLocked:true}))
+            W.model.actionManager.add(new UpdateObject(W.model.segments.getObjectById(segments[1]),{fwdTurnsLocked:true,revTurnsLocked:true}))
+            seg_left.push(segments[0]);
+            seg_right.push(segments[1]);
+        });
+
+        $.each(seg_left, function(i, segmentos_left) {
+            if(i < seg_left.length - 1)
+            {
+                let segment = W.model.segments.getObjectById(segmentos_left)
+                if(sentido_base == "AB")
+                    W.model.actionManager.add(new ModifyAllConnections(segment.getToNode(),true))
+                if(sentido_base == "BA")
+                    W.model.actionManager.add(new ModifyAllConnections(segment.getFromNode(),true))
+            }
+        });
+        $.each(seg_right, function(i, segmentos_right) {
+            if(i > 0)
+            {
+                let segment = W.model.segments.getObjectById(segmentos_right)
+                if(sentido_base == "AB")
+                    W.model.actionManager.add(new ModifyAllConnections(segment.getFromNode(),true))
+                if(sentido_base == "BA")
+                    W.model.actionManager.add(new ModifyAllConnections(segment.getToNode(),true))
+            }
+        });
+
+    }
 
     function createSegments(sel, displacement, no) {
         var wazefeatureVectorSegment = require("Waze/Feature/Vector/Segment");
@@ -650,5 +795,5 @@
             return "";
         return variable["v"];
     }
-
+    bootstrap();
 })();
