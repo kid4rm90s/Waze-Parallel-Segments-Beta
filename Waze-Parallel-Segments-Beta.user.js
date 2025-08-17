@@ -222,7 +222,6 @@
     function addWMESelectSegmentbutton() {
       // Remove any previous UI to avoid duplicates
       $('#split-segment').remove();
-      if (document.getElementById('MapCommentGeo')) $('#MapCommentGeo').remove();
       if (document.getElementById('split-segment')) $('#split-segment').remove();
 
       // Only show if a segment is selected
