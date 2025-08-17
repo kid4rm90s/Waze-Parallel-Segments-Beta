@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name            Waze Parallel Segments
-// @version         2025.07.05.5
+// @version         2025.08.17.07
 // @author          kid4rm90s
-// @description     This script helps to split segments and align in parallel given distance by assigning oneway road.
+// @description     This script helps to split segments and align in parallel given distance by assigning oneway road. Fixed: Enhanced delay system prevents null nodeId errors during multi-segment operations.
 // @include         /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor\/?.*$/*
 // @grant           GM_xmlhttpRequest
 // @connect     raw.githubusercontent.com
@@ -81,6 +81,29 @@
   // --- Utility Functions ---
 
   /**
+   * Safely gets the ObjectType constants, falls back to string literals if not available
+   * @returns {Object} ObjectType constants or fallback object
+   */
+  function getObjectType() {
+    // Try to access ObjectType from various possible locations
+    if (wmeSdk && wmeSdk.ObjectType && wmeSdk.ObjectType.SEGMENT) {
+      return wmeSdk.ObjectType;
+    }
+    if (window.ObjectType && window.ObjectType.SEGMENT) {
+      return window.ObjectType;
+    }
+    if (unsafeWindow.ObjectType && unsafeWindow.ObjectType.SEGMENT) {
+      return unsafeWindow.ObjectType;
+    }
+    // Fallback to string literals
+    console.warn('[wazeparallelsegments] ObjectType constants not found, using string fallbacks');
+    return {
+      SEGMENT: 'segment',
+      NODE: 'node'
+    };
+  }
+
+  /**
    * Converts imperial units (feet) to metric units (meters) if user settings require it
    * @param {number} value - The value to convert (assumed to be in feet if conversion needed)
    * @returns {number} The value in meters (rounded) if conversion needed, otherwise original value
@@ -89,6 +112,45 @@
     const userSettings = wmeSdk.Settings.getUserSettings();
     if (userSettings && !userSettings.isImperial) return value;
     return Math.round(value * 0.3048);
+  }
+
+  /**
+   * Validates a segment for splitting operations based on WME Segment interface properties
+   * @param {Object} segment - The segment object to validate
+   * @returns {Object} Validation result with {isValid: boolean, reason?: string}
+   */
+  function validateSegmentForSplitting(segment) {
+    if (!segment) {
+      return { isValid: false, reason: 'Segment not found' };
+    }
+
+    // Check for required node connections
+    if (!segment.fromNodeId || !segment.toNodeId) {
+      return { isValid: false, reason: 'Segment missing node connections' };
+    }
+
+    // Check geometry validity
+    if (!segment.geometry || segment.geometry.type !== 'LineString') {
+      return { isValid: false, reason: 'Invalid segment geometry' };
+    }
+
+    // Check if segment has sufficient length (if available)
+    if (segment.length && segment.length < 5) {
+      return { isValid: false, reason: 'Segment too short (< 5 meters)' };
+    }
+
+    // Check for pedestrian road types that shouldn't be split
+    const pedonalRoadTypes = [5, 10, 16]; // Pedestrian paths, boardwalks, etc.
+    if (pedonalRoadTypes.includes(segment.roadType)) {
+      return { isValid: false, reason: 'Pedestrian road type not suitable for splitting' };
+    }
+
+    // Check if segment has restrictions that might complicate splitting
+    if (segment.hasRestrictions) {
+      console.warn('validateSegmentForSplitting: Segment has restrictions - proceed with caution');
+    }
+
+    return { isValid: true };
   }
 
   /**
@@ -122,7 +184,8 @@
    */
   function getSelectedSegmentsMergedLineString() {
     const selection = wmeSdk.Editing.getSelection();
-    if (!selection || selection.objectType !== 'segment') return null;
+    const ObjectType = getObjectType();
+    if (!selection || selection.objectType !== ObjectType.SEGMENT) return null;
     return mergeSegmentsGeometry(selection.ids.map(String));
   }
 
@@ -226,7 +289,8 @@
 
       // Only show if a segment is selected
       const selection = wmeSdk.Editing.getSelection();
-      if (!selection || selection.objectType !== 'segment' || !selection.ids || selection.ids.length === 0) return;
+      const ObjectType = getObjectType();
+      if (!selection || selection.objectType !== ObjectType.SEGMENT || !selection.ids || selection.ids.length === 0) return;
 
       const pedonal_id = [5, 10, 16]; // Road types not suitable for splitting (pedestrian paths)
 
@@ -313,7 +377,8 @@
       eventHandler: () => {
         setTimeout(() => {
           const sel = wmeSdk.Editing.getSelection();
-          if (sel && sel.objectType === 'segment' && sel.ids && sel.ids.length > 0) {
+          const ObjectType = getObjectType();
+          if (sel && sel.objectType === ObjectType.SEGMENT && sel.ids && sel.ids.length > 0) {
             addWMESelectSegmentbutton();
           } else {
             $('#split-segment').remove();
@@ -324,7 +389,8 @@
     // Also call on script load if a segment is already selected
     setTimeout(() => {
       const sel = wmeSdk.Editing.getSelection();
-      if (sel && sel.objectType === 'segment' && sel.ids && sel.ids.length > 0) {
+      const ObjectType = getObjectType();
+      if (sel && sel.objectType === ObjectType.SEGMENT && sel.ids && sel.ids.length > 0) {
         addWMESelectSegmentbutton();
       }
     }, 500);
@@ -354,47 +420,218 @@
   }
 
   /**
-   * Connects multiple segments end-to-end by aligning their geometries
+   * Connects multiple segments end-to-end by properly merging nodes and aligning geometries
    * Used after splitting multiple segments to ensure proper connectivity between parallel chains
-   * Adjusts geometry coordinates so segment endpoints match exactly
+   * Creates proper road network topology by connecting segment endpoints at the node level
    * @param {Array<Object>} segmentChain - Array of objects with {segmentId, splitNodeId} properties
    * @returns {Promise<void>} Resolves when all segments are connected
    */
   async function connectShiftedSegments(segmentChain) {
+    console.log(`[wazeparallelsegments] Connecting ${segmentChain.length} segments in chain`);
+    
+    if (!segmentChain || segmentChain.length < 2) {
+      console.log(`[wazeparallelsegments] Chain too short or invalid, skipping connection`);
+      return;
+    }
+    
+    // Add initial delay to ensure all segments are fully created
+    console.log(`[wazeparallelsegments] Waiting 2 seconds for segments to stabilize before connecting...`);
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
     // segmentChain: [{ segmentId, splitNodeId }, ...]
     for (let i = 0; i < segmentChain.length - 1; i++) {
       const curr = segmentChain[i];
       const next = segmentChain[i + 1];
+      
       // Skip invalid segment pairs
-      if (!curr || !next || !curr.segmentId || !next.segmentId || !curr.splitNodeId || !next.splitNodeId) continue;
+      if (!curr || !next || !curr.segmentId || !next.segmentId) {
+        console.warn(`[wazeparallelsegments] Skipping invalid segment pair at index ${i}`);
+        continue;
+      }
+
       let currSeg = wmeSdk.DataModel.Segments.getById({ segmentId: curr.segmentId });
       let nextSeg = wmeSdk.DataModel.Segments.getById({ segmentId: next.segmentId });
-      if (!currSeg || !nextSeg) continue;
-      let currNode = safeGetNodeById(curr.splitNodeId);
-      let nextNode = safeGetNodeById(next.splitNodeId);
+      
+      if (!currSeg || !nextSeg) {
+        console.warn(`[wazeparallelsegments] Could not find segments ${curr.segmentId} or ${next.segmentId}`);
+        continue;
+      }
+
+      // Wait for segments to stabilize and get valid node IDs
       let retries = 0;
-      while ((!currNode || !nextNode) && retries < 5) {
-        await new Promise((r) => setTimeout(r, 300));
+      const maxRetries = 20; // Increased from 15
+      while ((!currSeg?.toNodeId || !nextSeg?.fromNodeId || 
+              currSeg.toNodeId == null || nextSeg.fromNodeId == null) && retries < maxRetries) {
+        console.log(`[wazeparallelsegments] Waiting for node IDs to stabilize (retry ${retries + 1}/${maxRetries})`);
+        await new Promise((r) => setTimeout(r, 800)); // Increased from 500ms
         currSeg = wmeSdk.DataModel.Segments.getById({ segmentId: curr.segmentId });
         nextSeg = wmeSdk.DataModel.Segments.getById({ segmentId: next.segmentId });
-        currNode = safeGetNodeById(curr.splitNodeId);
-        nextNode = safeGetNodeById(next.splitNodeId);
         retries++;
       }
-      if (!currNode || !nextNode) continue;
+
+      if (!currSeg?.toNodeId || !nextSeg?.fromNodeId || 
+          currSeg.toNodeId == null || nextSeg.fromNodeId == null) {
+        console.warn(`[wazeparallelsegments] Segments ${curr.segmentId} or ${next.segmentId} missing valid node IDs after ${maxRetries} retries`);
+        console.warn(`[wazeparallelsegments] currSeg.toNodeId: ${currSeg?.toNodeId}, nextSeg.fromNodeId: ${nextSeg?.fromNodeId}`);
+        // Fall back to geometry-only alignment
+        await alignSegmentGeometriesOnly(currSeg, nextSeg);
+        continue;
+      }
+
+      try {
+        // Validate node IDs before attempting to get nodes
+        if (!currSeg.toNodeId || !nextSeg.fromNodeId) {
+          console.warn(`[wazeparallelsegments] Invalid node IDs: currSeg.toNodeId=${currSeg.toNodeId}, nextSeg.fromNodeId=${nextSeg.fromNodeId}`);
+          continue;
+        }
+
+        // Additional validation - ensure node IDs are not null/undefined
+        if (currSeg.toNodeId == null || nextSeg.fromNodeId == null) {
+          console.warn(`[wazeparallelsegments] Node IDs are null/undefined for segments ${curr.segmentId}/${next.segmentId}`);
+          continue;
+        }
+
+        // Get the end node of current segment and start node of next segment using safe method
+        const currEndNode = safeGetNodeById(currSeg.toNodeId);
+        const nextStartNode = safeGetNodeById(nextSeg.fromNodeId);
+        
+        if (!currEndNode || !nextStartNode) {
+          console.warn(`[wazeparallelsegments] Could not find end/start nodes for segments ${curr.segmentId}/${next.segmentId}`);
+          // Fall back to geometry-only alignment
+          await alignSegmentGeometriesOnly(currSeg, nextSeg);
+          continue;
+        }
+
+        // Check if nodes are already the same (already connected)
+        if (currSeg.toNodeId === nextSeg.fromNodeId) {
+          console.log(`[wazeparallelsegments] Segments ${curr.segmentId} and ${next.segmentId} already connected`);
+          continue;
+        }
+
+        // Get geometries for alignment
+        let currGeom = currSeg.geometry && currSeg.geometry.coordinates ? currSeg.geometry.coordinates.slice() : null;
+        let nextGeom = nextSeg.geometry && nextSeg.geometry.coordinates ? nextSeg.geometry.coordinates.slice() : null;
+        
+        if (!currGeom || !nextGeom || currGeom.length < 2 || nextGeom.length < 2) {
+          console.warn(`[wazeparallelsegments] Invalid geometries for segments ${curr.segmentId}/${next.segmentId}`);
+          continue;
+        }
+
+        // Calculate the midpoint between the end of current segment and start of next segment
+        const currEndCoord = currGeom[currGeom.length - 1];
+        const nextStartCoord = nextGeom[0];
+        const midpointCoord = [
+          (currEndCoord[0] + nextStartCoord[0]) / 2,
+          (currEndCoord[1] + nextStartCoord[1]) / 2
+        ];
+
+        console.log(`[wazeparallelsegments] Connecting segments ${curr.segmentId} -> ${next.segmentId} at midpoint`);
+
+        // Move the nodes to the midpoint position using moveNode (which automatically updates connected segment geometries)
+        if (currSeg.toNodeId && currSeg.toNodeId != null) {
+          try {
+            wmeSdk.DataModel.Nodes.moveNode({
+              id: currSeg.toNodeId,
+              geometry: { type: 'Point', coordinates: midpointCoord }
+            });
+            console.log(`[wazeparallelsegments] Moved end node of segment ${curr.segmentId} to midpoint`);
+          } catch (moveError) {
+            console.warn(`[wazeparallelsegments] Failed to move node ${currSeg.toNodeId}:`, moveError);
+          }
+        }
+
+        if (nextSeg.fromNodeId && nextSeg.fromNodeId != null) {
+          try {
+            wmeSdk.DataModel.Nodes.moveNode({
+              id: nextSeg.fromNodeId,
+              geometry: { type: 'Point', coordinates: midpointCoord }
+            });
+            console.log(`[wazeparallelsegments] Moved start node of segment ${next.segmentId} to midpoint`);
+          } catch (moveError) {
+            console.warn(`[wazeparallelsegments] Failed to move node ${nextSeg.fromNodeId}:`, moveError);
+          }
+        }
+
+        // Wait longer for the node moves to process
+        console.log(`[wazeparallelsegments] Waiting for node moves to complete...`);
+        await new Promise((r) => setTimeout(r, 800)); // Increased from 300ms
+
+        // Now merge the nodes to create proper connectivity (with additional validation)
+        if (currSeg.toNodeId && nextSeg.fromNodeId && 
+            currSeg.toNodeId != null && nextSeg.fromNodeId != null &&
+            currSeg.toNodeId !== nextSeg.fromNodeId) {
+          try {
+            await wmeSdk.DataModel.Nodes.mergeNodes({
+              nodeIds: [currSeg.toNodeId, nextSeg.fromNodeId]
+            });
+            console.log(`[wazeparallelsegments] Successfully merged nodes and connected segments ${curr.segmentId} -> ${next.segmentId}`);
+          } catch (mergeError) {
+            console.warn(`[wazeparallelsegments] Node merge failed for segments ${curr.segmentId}/${next.segmentId}:`, mergeError);
+            // If merge fails, at least the geometries are aligned
+          }
+        } else {
+          console.log(`[wazeparallelsegments] Skipping node merge - invalid or same node IDs`);
+        }
+
+      } catch (e) {
+        console.warn('connectShiftedSegments: Failed to connect segments', curr.segmentId, next.segmentId, e);
+        // Fall back to geometry-only alignment
+        await alignSegmentGeometriesOnly(currSeg, nextSeg);
+      }
+      
+      // Add delay between each connection attempt to prevent overloading WME
+      if (i < segmentChain.length - 2) {
+        console.log(`[wazeparallelsegments] Waiting 500ms before next connection...`);
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+  }
+
+  /**
+   * Fallback method to align segment geometries without node merging
+   * Used when node IDs are not available or node merge operations fail
+   * Uses moveNode when possible, falls back to geometry-only alignment
+   */
+  async function alignSegmentGeometriesOnly(currSeg, nextSeg) {
+    if (!currSeg || !nextSeg) return;
+    
+    try {
       let currGeom = currSeg.geometry && currSeg.geometry.coordinates ? currSeg.geometry.coordinates.slice() : null;
       let nextGeom = nextSeg.geometry && nextSeg.geometry.coordinates ? nextSeg.geometry.coordinates.slice() : null;
-      if (!currGeom || !nextGeom || currGeom.length < 2 || nextGeom.length < 2) continue;
-      currGeom[currGeom.length - 1] = nextGeom[0].slice();
-      try {
-        await wmeSdk.DataModel.Segments.updateSegment({
-          segmentId: curr.segmentId,
-          geometry: { type: 'LineString', coordinates: currGeom },
-        });
-        console.log(`[wazeparallelsegments] Geometry-aligned segment ${curr.segmentId} end to ${next.segmentId} start.`);
-      } catch (e) {
-        console.warn('connectShiftedSegments: Failed to update geometry for alignment', curr.segmentId, e);
+      
+      if (!currGeom || !nextGeom || currGeom.length < 2 || nextGeom.length < 2) {
+        console.warn(`[wazeparallelsegments] Cannot align geometries - invalid geometry data`);
+        return;
       }
+
+      // Calculate alignment point (use start of next segment)
+      const alignmentCoord = nextGeom[0].slice();
+
+      // Try to use moveNode if we have valid node IDs
+      if (currSeg.toNodeId && currSeg.toNodeId != null) {
+        try {
+          wmeSdk.DataModel.Nodes.moveNode({
+            id: currSeg.toNodeId,
+            geometry: { type: 'Point', coordinates: alignmentCoord }
+          });
+          console.log(`[wazeparallelsegments] Fallback: Moved node to align segments ${currSeg.id} -> ${nextSeg.id}`);
+          return; // Success with moveNode
+        } catch (moveError) {
+          console.warn(`[wazeparallelsegments] Fallback moveNode failed, trying geometry update:`, moveError);
+        }
+      }
+
+      // Fallback to manual geometry alignment if moveNode fails or node ID unavailable
+      currGeom[currGeom.length - 1] = alignmentCoord;
+
+      await wmeSdk.DataModel.Segments.updateSegment({
+        segmentId: currSeg.id,
+        geometry: { type: 'LineString', coordinates: currGeom },
+      });
+
+      console.log(`[wazeparallelsegments] Fallback: Geometry-only alignment completed for segments ${currSeg.id} -> ${nextSeg.id}`);
+    } catch (e) {
+      console.warn(`[wazeparallelsegments] All fallback alignment methods failed:`, e);
     }
   }
 
@@ -406,24 +643,49 @@
    */
   async function splitAndShiftMultipleSegments(distance) {
     const selection = wmeSdk.Editing.getSelection();
-    if (!selection || selection.objectType !== 'segment' || !selection.ids || selection.ids.length < 2) {
+    const ObjectType = getObjectType();
+    if (!selection || selection.objectType !== ObjectType.SEGMENT || !selection.ids || selection.ids.length < 2) {
       alert('Please select at least two segments.');
       return;
     }
     const ids = selection.ids.map(Number);
     const leftChain = [];
     const rightChain = [];
+    
+    console.log(`[wazeparallelsegments] Starting split of ${ids.length} segments with delays for stability`);
+    
     for (let i = 0; i < ids.length; i++) {
+      console.log(`[wazeparallelsegments] Processing segment ${i + 1}/${ids.length}: ${ids[i]}`);
+      
       const result = await splitAndShiftSelectedSegment(distance, ids[i], true);
       if (result && result.left && result.right) {
         leftChain.push(result.left);
         rightChain.push(result.right);
+        console.log(`[wazeparallelsegments] Segment ${ids[i]} split successfully`);
       } else {
         console.warn('splitAndShiftMultipleSegments: Split failed for segment', ids[i]);
       }
+      
+      // Add delay between each segment split to allow WME to process
+      if (i < ids.length - 1) {
+        console.log(`[wazeparallelsegments] Waiting 1 second before next segment...`);
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
     }
+    
+    // Add longer delay before connecting to ensure all splits are fully processed
+    console.log(`[wazeparallelsegments] All segments split. Waiting 3 seconds before connecting chains...`);
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    
     // After all splits, connect left and right chains
+    console.log(`[wazeparallelsegments] Connecting left chain (${leftChain.length} segments)`);
     await connectShiftedSegments(leftChain);
+    
+    // Add delay between left and right chain connections
+    console.log(`[wazeparallelsegments] Waiting 2 seconds before connecting right chain...`);
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    console.log(`[wazeparallelsegments] Connecting right chain (${rightChain.length} segments)`);
     await connectShiftedSegments(rightChain);
     console.log('[wazeparallelsegments] Multi-segment split/shift complete. Left and right chains processed.');
   }
@@ -945,7 +1207,8 @@
   async function splitAndShiftSelectedSegment(distance, forceSegmentId) {
     console.debug('splitAndShiftSelectedSegment: START', { distance, forceSegmentId });
     const selection = wmeSdk.Editing.getSelection();
-    let segmentId = forceSegmentId !== undefined ? forceSegmentId : selection && selection.objectType === 'segment' && selection.ids.length === 1 ? Number(selection.ids[0]) : null;
+    const ObjectType = getObjectType();
+    let segmentId = forceSegmentId !== undefined ? forceSegmentId : selection && selection.objectType === ObjectType.SEGMENT && selection.ids.length === 1 ? Number(selection.ids[0]) : null;
     if (!segmentId) {
       console.log('splitAndShiftSelectedSegment: Please select a single segment.');
       console.debug('splitAndShiftSelectedSegment: No segmentId');
@@ -959,12 +1222,16 @@
       return;
     }
 
-    const origLine = segori.geometry;
-    if (!origLine || origLine.type !== 'LineString') {
-      console.log('splitAndShiftSelectedSegment: Invalid segment geometry.');
-      console.debug('splitAndShiftSelectedSegment: Invalid geometry', origLine);
+    // Enhanced validation using Segment interface properties
+    const validation = validateSegmentForSplitting(segori);
+    if (!validation.isValid) {
+      console.log(`splitAndShiftSelectedSegment: ${validation.reason}`);
+      console.debug('splitAndShiftSelectedSegment: Validation failed', validation);
+      alert(`Cannot split segment: ${validation.reason}`);
       return;
     }
+
+    const origLine = segori.geometry;
 
     console.debug('splitAndShiftSelectedSegment: Original segment geometry', origLine);
 
@@ -1484,7 +1751,8 @@
   // --- Multi-segment Split/Shift ---
   async function splitAndShiftMultipleSegments(distance) {
     const selection = wmeSdk.Editing.getSelection();
-    if (!selection || selection.objectType !== 'segment' || selection.ids.length < 1) {
+    const ObjectType = getObjectType();
+    if (!selection || selection.objectType !== ObjectType.SEGMENT || selection.ids.length < 1) {
       console.log('splitAndShiftMultipleSegments: Please select at least one segment.');
       return;
     }
