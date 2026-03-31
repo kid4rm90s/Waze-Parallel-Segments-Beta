@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Waze Parallel Segments
 // @version      2026.03.31.03
-// @description  Facilitates the standardisation of segments for left-hand traffic AKA right-hand-driving (WME SDK edition)
+// @description  Splits two-way segments into parallel one-way carriageways. Supports both left-hand and right-hand traffic countries.
 // @author       kid4rm90s & copilot (original author J0N4S13)
 // @include 	 /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
 // @exclude      https://www.waze.com/user/*editor/*
