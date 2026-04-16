@@ -232,7 +232,7 @@ Migrated to WME SDK by kid4rm90s
         selSegmentsDistance.setAttribute('value', '5');
         selSegmentsDistance.style.cssText = 'width: 45%;float:left;';
 
-        const distanceOptions = [5, 7, 9, 10, 11, 12, 13, 14, 15, 17, 19, 21, 23, 25, 37, 40, 42, 45];
+        const distanceOptions = [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 19, 21, 23, 25, 27, 30, 32, 35, 37, 40, 42, 45];
         for (const val of distanceOptions) {
             const opt = document.createElement('wz-option');
             opt.setAttribute('value', String(val));
